@@ -1,0 +1,2126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SuperMail</title>
+<script src="https://accounts.google.com/gsi/client"></script>
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="env.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #09090b; --surface: #0f0f12; --surface2: #16161a; --surface3: #1c1c22;
+  --border: #252528; --border2: #333338;
+  --text: #ededef; --text2: #9898a4; --text3: #55555f;
+  --accent: #dfd0b4; --accent2: #c2a87a; --accent-dim: rgba(223,208,180,0.07);
+  --red: #f87171; --green: #6ee7b7; --blue: #7dd3fc; --amber: #fbbf24;
+  --font: 'DM Sans', sans-serif; --mono: 'DM Mono', monospace; --serif: 'Instrument Serif', serif;
+  --r: 8px;
+}
+/* ─── LIGHT THEME ────────────────────────────────────────── */
+html.light {
+  --bg: #f5f5f7; --surface: #ffffff; --surface2: #eeeef0; --surface3: #e4e4e8;
+  --border: #d4d4d8; --border2: #b8b8bf;
+  --text: #18181b; --text2: #52525b; --text3: #a1a1aa;
+  --accent: #92713a; --accent2: #7a5c2e; --accent-dim: rgba(146,113,58,0.08);
+  --red: #dc2626; --green: #16a34a; --blue: #2563eb; --amber: #d97706;
+}
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); overflow: hidden; -webkit-font-smoothing: antialiased; }
+::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ─── THEME TOGGLE ───────────────────────────────────────── */
+.theme-toggle {
+  position: relative; width: 36px; height: 20px; border-radius: 20px;
+  background: var(--surface3); border: 1px solid var(--border);
+  cursor: pointer; transition: background 0.2s; flex-shrink: 0;
+}
+.theme-toggle::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--accent); transition: transform 0.2s;
+}
+html.light .theme-toggle::after { transform: translateX(16px); }
+.theme-label { font-family: var(--mono); font-size: 0.58rem; color: var(--text3); }
+
+/* ─── AUTH SCREEN ─────────────────────────────────────────── */
+#auth {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(223,208,180,0.055) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 40% at 85% 90%, rgba(125,211,252,0.03) 0%, transparent 55%);
+}
+#auth.gone { display: none; }
+
+.auth-wrap { display: flex; flex-direction: column; align-items: center; width: 420px; }
+
+.logo-mark {
+  font-family: var(--serif); font-size: 2.8rem; color: var(--accent);
+  letter-spacing: -0.03em; margin-bottom: 0.2rem;
+  animation: rise 0.7s cubic-bezier(0.22,1,0.36,1) both;
+}
+.logo-sub {
+  font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--text3); margin-bottom: 3rem;
+  animation: rise 0.7s 0.08s cubic-bezier(0.22,1,0.36,1) both;
+}
+
+.auth-card {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; overflow: hidden;
+  animation: rise 0.7s 0.15s cubic-bezier(0.22,1,0.36,1) both; position: relative;
+}
+.auth-card::after {
+  content: ''; position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent2), transparent); opacity: 0.5;
+}
+
+.auth-top { padding: 2rem 2rem 1.5rem; }
+.auth-top h2 { font-size: 1.05rem; font-weight: 500; margin-bottom: 0.4rem; }
+.auth-top p { font-size: 0.8rem; color: var(--text2); line-height: 1.65; }
+.auth-sep { height: 1px; background: var(--border); }
+.auth-field { padding: 1.5rem 2rem; display: flex; flex-direction: column; gap: 1rem; }
+.field-row { display: flex; flex-direction: column; gap: 0.35rem; }
+.field-row label { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); }
+.field-row input {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r);
+  padding: 0.6rem 0.85rem; color: var(--text); font-family: var(--mono); font-size: 0.78rem;
+  outline: none; transition: border-color 0.18s;
+}
+.field-row input:focus { border-color: var(--border2); }
+.field-row input::placeholder { color: var(--text3); }
+.auth-bottom { padding: 1.5rem 2rem 2rem; display: flex; flex-direction: column; gap: 0.75rem; }
+
+.btn-ms {
+  display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+  background: var(--accent); color: #0a0906;
+  border: none; border-radius: var(--r); padding: 0.75rem 1rem;
+  font-family: var(--font); font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: all 0.18s; width: 100%;
+}
+.btn-ms:hover { background: var(--accent2); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(194,168,122,0.2); }
+.btn-ms:active { transform: none; }
+.btn-ms:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn-ms svg { flex-shrink: 0; }
+.btn-demo {
+  background: none; border: 1px solid var(--border); border-radius: var(--r);
+  padding: 0.65rem 1rem; color: var(--text2); font-family: var(--font); font-size: 0.8rem;
+  cursor: pointer; transition: all 0.18s; width: 100%;
+}
+.btn-demo:hover { border-color: var(--border2); color: var(--text); background: var(--surface2); }
+.auth-err {
+  margin: 0 2rem 1.5rem; padding: 0.6rem 0.8rem; border-radius: 6px;
+  background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2);
+  font-size: 0.76rem; color: var(--red); line-height: 1.5; display: none;
+}
+.auth-err.show { display: block; }
+
+.setup-guide { margin: 0 2rem 2rem; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+.setup-toggle {
+  width: 100%; background: none; border: none; cursor: pointer;
+  padding: 0.75rem 1rem; display: flex; align-items: center; justify-content: space-between;
+  color: var(--text2); font-family: var(--font); font-size: 0.78rem; text-align: left; transition: background 0.15s;
+}
+.setup-toggle:hover { background: var(--surface2); }
+.setup-toggle span { font-family: var(--mono); font-size: 0.65rem; color: var(--text3); }
+.setup-body { display: none; padding: 0 1rem 1rem; }
+.setup-body.open { display: block; }
+.setup-step {
+  display: flex; gap: 0.75rem; padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border); font-size: 0.76rem; color: var(--text2); line-height: 1.6;
+}
+.setup-step:last-child { border-bottom: none; }
+.step-num {
+  font-family: var(--mono); font-size: 0.65rem; color: var(--accent2);
+  background: var(--accent-dim); border-radius: 4px; padding: 1px 6px;
+  flex-shrink: 0; height: fit-content; margin-top: 2px;
+}
+.setup-step a { color: var(--accent2); text-decoration: none; }
+.setup-step code { font-family: var(--mono); font-size: 0.7rem; color: var(--text); background: var(--surface3); padding: 1px 5px; border-radius: 3px; }
+.setup-step strong { color: var(--text); font-weight: 500; }
+
+/* ─── APP LAYOUT ──────────────────────────────────────────── */
+#app { display: flex; height: 100vh; }
+#app.gone { display: none; }
+
+/* ─── SIDEBAR ─────────────────────────────────────────────── */
+.sidebar {
+  width: 228px; min-width: 228px;
+  background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+.sb-top { padding: 1.25rem 1.1rem 1rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.sb-logo { font-family: var(--serif); font-size: 1.35rem; color: var(--accent); letter-spacing: -0.02em; }
+.sb-section { padding: 0.85rem 0 0.25rem; }
+.sb-label { font-family: var(--mono); font-size: 0.58rem; color: var(--text3); letter-spacing: 0.13em; text-transform: uppercase; padding: 0 1.1rem 0.4rem; }
+.sb-item {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.42rem 1.1rem; cursor: pointer;
+  font-size: 0.82rem; color: var(--text2);
+  position: relative; transition: color 0.12s; user-select: none;
+}
+.sb-item:hover { color: var(--text); }
+.sb-item::before { content: ''; position: absolute; inset: 2px 4px; border-radius: 5px; background: var(--surface2); opacity: 0; transition: opacity 0.12s; }
+.sb-item:hover::before { opacity: 1; }
+.sb-item.active { color: var(--text); }
+.sb-item.active::before { opacity: 1; background: var(--accent-dim); }
+.sb-item.active::after { content: ''; position: absolute; left: 0; top: 25%; bottom: 25%; width: 2px; background: var(--accent); border-radius: 0 2px 2px 0; }
+.sb-item > * { position: relative; }
+.sb-ic { font-size: 0.82rem; width: 15px; text-align: center; opacity: 0.6; flex-shrink: 0; }
+.sb-item.active .sb-ic { opacity: 1; }
+.sb-badge { margin-left: auto; font-family: var(--mono); font-size: 0.6rem; padding: 1px 6px; border-radius: 99px; background: var(--surface3); color: var(--text3); }
+.sb-badge.live { background: var(--accent); color: #0a0906; font-weight: 700; }
+.sb-shortcut { margin-left: auto; font-family: var(--mono); font-size: 0.6rem; color: var(--text3); opacity: 0; transition: opacity 0.15s; }
+.sb-item:hover .sb-shortcut { opacity: 1; }
+.sb-div { height: 1px; background: var(--border); margin: 0.5rem 1.1rem; }
+
+.sb-user {
+  margin-top: auto; border-top: 1px solid var(--border);
+  padding: 0.85rem 1.1rem; display: flex; align-items: center; gap: 0.65rem;
+}
+.sb-av {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent2), #9b5fcf);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 700; color: white;
+}
+.sb-uinfo { flex: 1; min-width: 0; }
+.sb-uname { font-size: 0.76rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-uemail { font-size: 0.65rem; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-logout { background: none; border: none; cursor: pointer; color: var(--text3); padding: 4px; border-radius: 4px; font-size: 0.7rem; transition: color 0.15s; flex-shrink: 0; }
+.sb-logout:hover { color: var(--red); }
+
+/* ─── LIST PANE ───────────────────────────────────────────── */
+.list-pane { width: 320px; min-width: 320px; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--bg); }
+.lp-header { padding: 0.85rem 1rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.lp-title { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.02em; }
+.lp-acts { display: flex; gap: 0.25rem; }
+.ib { background: none; border: none; cursor: pointer; color: var(--text3); padding: 5px 7px; border-radius: 5px; font-size: 0.8rem; transition: all 0.12s; line-height: 1; }
+.ib:hover { background: var(--surface2); color: var(--text); }
+.lp-search { padding: 0.5rem 0.85rem; border-bottom: 1px solid var(--border); }
+.lp-search-inner {
+  display: flex; align-items: center; gap: 0.4rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0.38rem 0.65rem;
+}
+.lp-search-inner span { color: var(--text3); font-size: 0.75rem; }
+.lp-search-inner input { background: none; border: none; outline: none; flex: 1; color: var(--text); font-family: var(--font); font-size: 0.78rem; }
+.lp-search-inner input::placeholder { color: var(--text3); }
+.lp-cats { display: flex; gap: 0.35rem; padding: 0.45rem 0.85rem; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.lp-cat { font-family: var(--mono); font-size: 0.6rem; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--border); color: var(--text3); cursor: pointer; background: none; white-space: nowrap; transition: all 0.12s; }
+.lp-cat:hover { border-color: var(--border2); color: var(--text2); }
+.lp-cat.on { border-color: var(--accent2); color: var(--accent); background: var(--accent-dim); }
+.lp-errbar { padding: 0.45rem 0.85rem; background: rgba(248,113,113,0.07); border-bottom: 1px solid rgba(248,113,113,0.15); font-size: 0.73rem; color: var(--red); display: none; }
+.lp-errbar.show { display: block; }
+.lp-items { flex: 1; overflow-y: auto; }
+
+/* Email item */
+.em {
+  padding: 0.8rem 1rem; border-bottom: 1px solid var(--border);
+  cursor: pointer; position: relative; transition: background 0.08s;
+}
+.em:hover { background: var(--surface); }
+.em.sel { background: var(--surface2); }
+.em.sel::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
+.em.unread .em-from { color: var(--text); font-weight: 600; }
+.em.unread::after { content: ''; position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.em-row1 { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.15rem; }
+.em-from { font-size: 0.8rem; color: var(--text2); }
+.em-time { font-family: var(--mono); font-size: 0.6rem; color: var(--text3); flex-shrink: 0; }
+.em-subj { font-size: 0.78rem; color: var(--text); margin-bottom: 0.12rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 12px; }
+.em-prev { font-size: 0.72rem; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 12px; }
+.em-pills { display: flex; gap: 0.3rem; margin-top: 0.35rem; flex-wrap: wrap; }
+.em-pill { font-family: var(--mono); font-size: 0.58rem; padding: 1px 6px; border-radius: 3px; border: 1px solid; }
+.pill-att { color: var(--blue); border-color: rgba(125,211,252,0.25); background: rgba(125,211,252,0.06); }
+.pill-star { color: var(--amber); border-color: rgba(251,191,36,0.25); background: rgba(251,191,36,0.06); }
+
+/* ─── READER ──────────────────────────────────────────────── */
+.reader { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.rd-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: var(--text3); gap: 0.7rem;
+}
+.rd-empty-icon { font-size: 2.2rem; opacity: 0.15; }
+.rd-empty-title { font-size: 0.9rem; color: var(--text2); font-weight: 500; }
+.rd-empty-hint { font-size: 0.74rem; line-height: 1.7; text-align: center; max-width: 260px; }
+.rd-empty-hint kbd { font-family: var(--mono); font-size: 0.62rem; color: var(--accent2); background: var(--surface2); padding: 1px 5px; border-radius: 3px; }
+#rd-content { display: none; flex-direction: column; height: 100%; }
+
+.rd-toolbar {
+  padding: 0.6rem 1.5rem; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
+}
+.tb-sep { width: 1px; height: 16px; background: var(--border); margin: 0 0.15rem; }
+.tb-btn {
+  display: flex; align-items: center; gap: 0.3rem;
+  background: none; border: none; cursor: pointer;
+  color: var(--text3); padding: 4px 8px; border-radius: 5px;
+  font-family: var(--font); font-size: 0.74rem; transition: all 0.12s;
+}
+.tb-btn:hover { background: var(--surface2); color: var(--text); }
+.tb-btn.starred { color: var(--amber); }
+
+.rd-scroll { flex: 1; overflow-y: auto; padding: 2rem 3rem; }
+.rd-header { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+.rd-subject {
+  font-family: var(--serif); font-style: italic;
+  font-size: 1.75rem; color: var(--text); line-height: 1.25;
+  margin-bottom: 1.25rem; letter-spacing: -0.01em; max-width: 680px;
+}
+.rd-meta { display: flex; align-items: center; gap: 0.85rem; }
+.rd-avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: var(--surface3); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; color: var(--text2); font-weight: 500;
+}
+.rd-sender { flex: 1; }
+.rd-sender-name { font-size: 0.84rem; font-weight: 500; }
+.rd-sender-email { font-family: var(--mono); font-size: 0.68rem; color: var(--text3); }
+.rd-datetime { font-family: var(--mono); font-size: 0.67rem; color: var(--text3); }
+.rd-body { font-size: 0.875rem; line-height: 1.82; color: var(--text2); max-width: 680px; }
+.rd-body p { margin-bottom: 0.9em; }
+.rd-body a { color: var(--accent2); }
+.rd-body blockquote { border-left: 2px solid var(--border2); padding-left: 1rem; color: var(--text3); margin: 0.75em 0; }
+
+/* ─── ATTACHMENTS ─────────────────────────────────────────── */
+.att-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.att-chip {
+  display: flex; align-items: center; gap: 0.45rem;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 0.45rem 0.75rem; cursor: pointer; transition: all 0.15s; text-decoration: none;
+}
+.att-chip:hover { border-color: var(--accent2); background: var(--accent-dim); }
+.att-icon { font-size: 0.9rem; }
+.att-name { font-size: 0.73rem; color: var(--text); max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.att-size { font-family: var(--mono); font-size: 0.6rem; color: var(--text3); }
+.att-dl { font-size: 0.7rem; color: var(--accent2); }
+
+/* Reply box */
+.reply-wrap {
+  border-top: 1px solid var(--border); padding: 1rem 1.5rem;
+  background: var(--surface); flex-shrink: 0;
+}
+.reply-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+.reply-label { font-size: 0.74rem; color: var(--text3); }
+.reply-label em { color: var(--text2); font-style: normal; }
+.reply-btns { display: flex; gap: 0.3rem; }
+.rta {
+  width: 100%; min-height: 70px; max-height: 200px;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r);
+  padding: 0.65rem 0.85rem; color: var(--text); font-family: var(--font);
+  font-size: 0.83rem; line-height: 1.65; resize: vertical; outline: none;
+  transition: border-color 0.18s; margin-bottom: 0.6rem;
+}
+.rta:focus { border-color: var(--border2); }
+.rta::placeholder { color: var(--text3); }
+.reply-foot { display: flex; justify-content: space-between; align-items: center; }
+.reply-hint { font-family: var(--mono); font-size: 0.6rem; color: var(--text3); }
+.btn-send {
+  background: var(--accent); color: #0a0906;
+  border: none; border-radius: 6px; padding: 0.42rem 1rem;
+  font-family: var(--font); font-size: 0.78rem; font-weight: 600;
+  cursor: pointer; transition: all 0.18s; display: flex; align-items: center; gap: 0.3rem;
+}
+.btn-send:hover { background: var(--accent2); transform: translateY(-1px); }
+
+/* ─── COMPOSE ─────────────────────────────────────────────── */
+.compose-modal {
+  position: fixed; bottom: 1.25rem; right: 1.25rem; width: 500px;
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 12px; box-shadow: 0 24px 72px rgba(0,0,0,0.55);
+  z-index: 200; display: none; flex-direction: column;
+}
+.compose-modal.open { display: flex; }
+.cmp-header {
+  padding: 0.8rem 1.1rem; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--surface2); border-radius: 12px 12px 0 0;
+}
+.cmp-title { font-size: 0.82rem; font-weight: 500; }
+.cmp-field { display: flex; align-items: center; gap: 0.65rem; padding: 0.5rem 1.1rem; border-bottom: 1px solid var(--border); }
+.cmp-label { font-family: var(--mono); font-size: 0.6rem; color: var(--text3); width: 24px; }
+.cmp-field input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-family: var(--font); font-size: 0.81rem; }
+.cmp-field input::placeholder { color: var(--text3); }
+.cmp-body { padding: 0.85rem 1.1rem; min-height: 170px; color: var(--text); font-family: var(--font); font-size: 0.83rem; line-height: 1.7; outline: none; }
+.cmp-body:empty::before { content: attr(data-placeholder); color: var(--text3); pointer-events: none; }
+.cmp-footer { padding: 0.65rem 1.1rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+
+/* ─── CMD PALETTE ─────────────────────────────────────────── */
+.cmd-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
+  z-index: 300; display: none; align-items: flex-start; justify-content: center; padding-top: 15vh;
+}
+.cmd-overlay.open { display: flex; }
+.cmd-box { background: var(--surface); border: 1px solid var(--border2); border-radius: 12px; width: 520px; overflow: hidden; box-shadow: 0 28px 80px rgba(0,0,0,0.65); }
+.cmd-search { display: flex; align-items: center; gap: 0.7rem; padding: 0.9rem 1.1rem; border-bottom: 1px solid var(--border); }
+.cmd-search-icon { color: var(--text3); font-size: 0.95rem; }
+.cmd-input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-family: var(--font); font-size: 0.9rem; }
+.cmd-input::placeholder { color: var(--text3); }
+.cmd-results { max-height: 290px; overflow-y: auto; padding: 0.4rem; }
+.cmd-group { font-family: var(--mono); font-size: 0.57rem; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; padding: 0.4rem 0.7rem 0.2rem; }
+.cmd-item { display: flex; align-items: center; gap: 0.7rem; padding: 0.52rem 0.7rem; border-radius: 6px; cursor: pointer; font-size: 0.81rem; color: var(--text2); transition: all 0.1s; }
+.cmd-item:hover, .cmd-item.hi { background: var(--surface2); color: var(--text); }
+.cmd-item-ks { margin-left: auto; font-family: var(--mono); font-size: 0.6rem; color: var(--text3); }
+.cmd-item-ic { width: 16px; text-align: center; font-size: 0.8rem; flex-shrink: 0; }
+
+/* ─── AI CHAT PANEL ───────────────────────────────────────── */
+.ai-panel {
+  width: 0; min-width: 0; overflow: hidden;
+  border-left: 1px solid var(--border); background: var(--surface);
+  display: flex; flex-direction: column; transition: width 0.25s ease, min-width 0.25s ease;
+}
+.ai-panel.open { width: 380px; min-width: 380px; }
+.ai-header {
+  padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+}
+.ai-header-title { font-size: 0.82rem; font-weight: 600; display: flex; align-items: center; gap: 0.4rem; }
+.ai-header-title span { color: var(--accent2); }
+.ai-messages {
+  flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;
+}
+.ai-msg {
+  max-width: 92%; padding: 0.6rem 0.85rem; border-radius: 10px;
+  font-size: 0.79rem; line-height: 1.6; word-wrap: break-word;
+}
+.ai-msg.user {
+  align-self: flex-end; background: var(--accent); color: #0a0906;
+  border-bottom-right-radius: 3px;
+}
+.ai-msg.assistant {
+  align-self: flex-start; background: var(--surface2); color: var(--text);
+  border-bottom-left-radius: 3px; border: 1px solid var(--border);
+}
+.ai-msg.assistant a { color: var(--accent2); }
+.ai-msg.tool-call {
+  align-self: flex-start; background: var(--surface3); color: var(--text3);
+  font-family: var(--mono); font-size: 0.68rem; border: 1px dashed var(--border);
+  padding: 0.4rem 0.7rem;
+}
+.ai-msg pre { font-family: var(--mono); font-size: 0.72rem; background: var(--surface3); padding: 0.5rem; border-radius: 4px; overflow-x: auto; margin: 0.4rem 0; white-space: pre-wrap; }
+.ai-msg code { font-family: var(--mono); font-size: 0.72rem; background: var(--surface3); padding: 1px 4px; border-radius: 3px; }
+.ai-msg .att-chip { margin-top: 0.4rem; }
+/* AI email/attachment cards */
+.ai-email-card {
+  padding: 0.55rem 0.65rem; margin: 0.3rem 0; border-radius: 8px;
+  background: var(--surface3); border: 1px solid var(--border);
+  transition: border-color 0.15s, background 0.15s;
+}
+.ai-email-card:hover { border-color: var(--accent2); background: var(--accent-dim); }
+.ai-card-row1 { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.15rem; }
+.ai-card-from { font-size: 0.72rem; font-weight: 600; color: var(--text); }
+.ai-card-date { font-family: var(--mono); font-size: 0.58rem; color: var(--text3); }
+.ai-card-subject { font-size: 0.73rem; color: var(--text2); margin-bottom: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-card-snippet { font-size: 0.65rem; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.25rem; }
+.ai-card-atts { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem; }
+.ai-input-wrap {
+  padding: 0.75rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; flex-shrink: 0;
+}
+.ai-input {
+  flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.55rem 0.75rem; color: var(--text); font-family: var(--font); font-size: 0.8rem;
+  outline: none; resize: none; min-height: 36px; max-height: 120px;
+}
+.ai-input:focus { border-color: var(--border2); }
+.ai-input::placeholder { color: var(--text3); }
+.ai-send-btn {
+  background: var(--accent); color: #0a0906; border: none; border-radius: 8px;
+  padding: 0 0.75rem; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+  transition: background 0.15s; flex-shrink: 0;
+}
+.ai-send-btn:hover { background: var(--accent2); }
+.ai-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ai-welcome { text-align: center; color: var(--text3); font-size: 0.76rem; line-height: 1.7; padding: 2rem 1rem; }
+.ai-welcome strong { color: var(--text2); }
+.ai-typing { display: flex; gap: 4px; align-items: center; padding: 0.5rem 0.85rem; }
+.ai-typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); animation: bounce 1.2s infinite; }
+.ai-typing span:nth-child(2) { animation-delay: 0.15s; }
+.ai-typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
+
+/* ─── AI TOGGLE BUTTON ────────────────────────────────────── */
+.ai-toggle-btn {
+  position: fixed; bottom: 1.25rem; right: 1.25rem;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--accent); color: #0a0906;
+  border: none; cursor: pointer; font-size: 1.1rem;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 190;
+  transition: all 0.18s;
+}
+.ai-toggle-btn:hover { transform: scale(1.08); background: var(--accent2); }
+.ai-panel.open ~ .ai-toggle-btn { display: none; }
+
+/* ─── AI HOVER BOX ────────────────────────────────────────── */
+.ai-hover-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(3px);
+  z-index: 350; display: none; align-items: center; justify-content: center;
+}
+.ai-hover-overlay.open { display: flex; }
+.ai-hover-box {
+  background: var(--surface); border: 1px solid var(--border2); border-radius: 12px;
+  width: 480px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.ai-hover-header {
+  padding: 0.65rem 0.9rem; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.ai-hover-title { font-size: 0.78rem; font-weight: 600; color: var(--accent2); }
+.ai-hover-context { font-family: var(--mono); font-size: 0.62rem; color: var(--text3); }
+.ai-hover-selection {
+  margin: 0.6rem 0.9rem; padding: 0.5rem 0.7rem; border-radius: 6px;
+  background: var(--surface2); border-left: 2px solid var(--accent2);
+  font-size: 0.73rem; color: var(--text2); line-height: 1.55;
+  max-height: 120px; overflow-y: auto; white-space: pre-wrap;
+}
+.ai-hover-input-row {
+  padding: 0.65rem 0.9rem; display: flex; gap: 0.5rem;
+}
+.ai-hover-input {
+  flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.5rem 0.75rem; color: var(--text); font-family: var(--font); font-size: 0.82rem;
+  outline: none;
+}
+.ai-hover-input:focus { border-color: var(--border2); }
+.ai-hover-input::placeholder { color: var(--text3); }
+.ai-hover-input:disabled { opacity: 0.5; }
+
+/* ─── TOAST ───────────────────────────────────────────────── */
+.toast {
+  position: fixed; top: 0.9rem; left: 50%; transform: translateX(-50%) translateY(-52px);
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 0.52rem 1rem;
+  font-size: 0.78rem; color: var(--text);
+  z-index: 400; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35); white-space: nowrap;
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ─── KBD HINT ────────────────────────────────────────────── */
+.kbd-hint {
+  position: fixed; bottom: 0.9rem; right: 0.9rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.6rem 0.85rem;
+  font-family: var(--mono); font-size: 0.61rem; color: var(--text3);
+  display: flex; flex-direction: column; gap: 0.22rem;
+  opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 50;
+}
+.kbd-hint.show { opacity: 1; }
+.kbd-row { display: flex; gap: 0.85rem; }
+.kbd-k { color: var(--accent2); }
+
+/* ─── LOADING ─────────────────────────────────────────────── */
+.loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 0.75rem; color: var(--text3); }
+.spin { width: 26px; height: 26px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: rotate 0.7s linear infinite; }
+.spin-label { font-family: var(--mono); font-size: 0.68rem; }
+
+/* ─── ANIMATIONS ──────────────────────────────────────────── */
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes rotate { to { transform: rotate(360deg); } }
+@keyframes fadein { from { opacity: 0; transform: translateX(6px); } to { opacity: 1; transform: translateX(0); } }
+.fadein { animation: fadein 0.2s ease both; }
+</style>
+</head>
+<body>
+
+<!-- ─── AUTH ─────────────────────────────────────────── -->
+<div id="auth">
+  <div class="auth-wrap">
+    <div class="logo-mark">SuperMail</div>
+    <div class="logo-sub">Gmail API · Modern Auth</div>
+
+    <div class="auth-card">
+      <div class="auth-top">
+        <h2>Connect your Gmail account</h2>
+        <p>Uses OAuth 2.0 via Google's identity platform. Supports personal Gmail and Google Workspace accounts.</p>
+      </div>
+      <div class="auth-sep"></div>
+      <div class="auth-field">
+        <div class="field-row">
+          <label>Google OAuth Client ID</label>
+          <input type="text" id="client-id" placeholder="123456789-xxxxxxxxxx.apps.googleusercontent.com" spellcheck="false" autocomplete="off">
+        </div>
+      </div>
+      <div class="auth-err" id="auth-err"></div>
+      <div class="auth-bottom">
+        <button class="btn-ms" id="signin-btn" onclick="signIn()">
+          <svg width="16" height="16" viewBox="0 0 48 48">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          Sign in with Google
+        </button>
+        <button class="btn-demo" onclick="loadDemo()">Explore with demo data →</button>
+      </div>
+    </div>
+
+    <div class="setup-guide">
+      <button class="setup-toggle" onclick="toggleSetup(this)">
+        How to get a Client ID (5 min)
+        <span id="setup-arrow">▼</span>
+      </button>
+      <div class="setup-body" id="setup-body">
+        <div class="setup-step">
+          <span class="step-num">1</span>
+          <span>Go to <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a> and sign in with your Google account.</span>
+        </div>
+        <div class="setup-step">
+          <span class="step-num">2</span>
+          <span>Create a new project (or select an existing one). Name it anything (e.g. "SuperMail").</span>
+        </div>
+        <div class="setup-step">
+          <span class="step-num">3</span>
+          <span>Go to <strong>APIs &amp; Services → Library</strong>. Search for <strong>Gmail API</strong> and click <strong>Enable</strong>.</span>
+        </div>
+        <div class="setup-step">
+          <span class="step-num">4</span>
+          <span>Go to <strong>APIs &amp; Services → OAuth consent screen</strong>. Choose <strong>External</strong> user type. Fill in the app name and your email. Add scopes: <code>gmail.readonly</code> <code>gmail.send</code> <code>gmail.modify</code>. Add your Gmail as a test user.</span>
+        </div>
+        <div class="setup-step">
+          <span class="step-num">5</span>
+          <span>Go to <strong>APIs &amp; Services → Credentials</strong> → <strong>Create Credentials → OAuth client ID</strong>. Choose <strong>Web application</strong>.</span>
+        </div>
+        <div class="setup-step">
+          <span class="step-num">6</span>
+          <span>Under <strong>Authorized JavaScript origins</strong>, add: <code id="redir-uri">loading...</code>. Under <strong>Authorized redirect URIs</strong>, add the same URL.</span>
+        </div>
+        <div class="setup-step">
+          <span class="step-num">7</span>
+          <span>Click <strong>Create</strong>. Copy the <strong>Client ID</strong> (ends in <code>.apps.googleusercontent.com</code>) and paste it above.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── APP ───────────────────────────────────────────── -->
+<div id="app" class="gone">
+  <div class="sidebar">
+    <div class="sb-top">
+      <div class="sb-logo">SuperMail</div>
+      <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode"></div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">Folders</div>
+      <div class="sb-item active" onclick="switchFolder('INBOX', this)" data-folder="INBOX">
+        <span class="sb-ic">✉</span><span>Inbox</span>
+        <span class="sb-badge live" id="inbox-badge">0</span>
+      </div>
+      <div class="sb-item" onclick="switchFolder('SENT', this)" data-folder="SENT">
+        <span class="sb-ic">↑</span><span>Sent</span>
+      </div>
+      <div class="sb-item" onclick="switchFolder('DRAFT', this)" data-folder="DRAFT">
+        <span class="sb-ic">✏</span><span>Drafts</span>
+      </div>
+      <div class="sb-item" onclick="switchFolder('ARCHIVE', this)" data-folder="ARCHIVE">
+        <span class="sb-ic">▤</span><span>Archive</span>
+      </div>
+      <div class="sb-item" onclick="switchFolder('TRASH', this)" data-folder="TRASH">
+        <span class="sb-ic">⊗</span><span>Trash</span>
+      </div>
+      <div class="sb-item" onclick="switchFolder('SPAM', this)" data-folder="SPAM">
+        <span class="sb-ic">⚑</span><span>Spam</span>
+      </div>
+    </div>
+
+    <div class="sb-div"></div>
+
+    <div class="sb-section">
+      <div class="sb-label">Actions</div>
+      <div class="sb-item" onclick="openCompose()">
+        <span class="sb-ic">✚</span><span>Compose</span>
+        <span class="sb-shortcut">C</span>
+      </div>
+      <div class="sb-item" onclick="openCmd()">
+        <span class="sb-ic">⌘</span><span>Command</span>
+        <span class="sb-shortcut">⌘K</span>
+      </div>
+      <div class="sb-item" onclick="refresh()">
+        <span class="sb-ic">↻</span><span>Refresh</span>
+        <span class="sb-shortcut">G I</span>
+      </div>
+      <div class="sb-item" onclick="toggleAI()">
+        <span class="sb-ic">✦</span><span>AI Chat</span>
+      </div>
+    </div>
+
+    <div class="sb-user">
+      <div class="sb-av" id="sb-av">?</div>
+      <div class="sb-uinfo">
+        <div class="sb-uname" id="sb-name">—</div>
+        <div class="sb-uemail" id="sb-email">—</div>
+      </div>
+      <button class="sb-logout" onclick="signOut()" title="Sign out">✕</button>
+    </div>
+  </div>
+
+  <!-- LIST -->
+  <div class="list-pane">
+    <div class="lp-header">
+      <div class="lp-title" id="lp-title">Inbox</div>
+      <div class="lp-acts">
+        <button class="ib" title="Mark all read" onclick="markAllRead()">👁</button>
+        <button class="ib" title="Refresh" onclick="refresh()">↻</button>
+      </div>
+    </div>
+    <div class="lp-errbar" id="lp-err"></div>
+    <div class="lp-search">
+      <div class="lp-search-inner">
+        <span>⌕</span>
+        <input type="text" placeholder="Search..." id="search-input" oninput="filterList(this.value)">
+      </div>
+    </div>
+    <div class="lp-cats">
+      <button class="lp-cat on" onclick="setCat('all',this)">All</button>
+      <button class="lp-cat" onclick="setCat('unread',this)">Unread</button>
+      <button class="lp-cat" onclick="setCat('starred',this)">Starred</button>
+      <button class="lp-cat" onclick="setCat('attach',this)">Attachments</button>
+    </div>
+    <div class="lp-items" id="lp-items">
+      <div class="loading-state"><div class="spin"></div><div class="spin-label">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- READER -->
+  <div class="reader">
+    <div class="rd-empty" id="rd-empty">
+      <div class="rd-empty-icon">✉</div>
+      <div class="rd-empty-title">Select an email to read</div>
+      <div class="rd-empty-hint">
+        <kbd>↑</kbd><kbd>↓</kbd> navigate &nbsp;
+        <kbd>E</kbd> archive &nbsp;
+        <kbd>#</kbd> delete<br>
+        <kbd>R</kbd> reply &nbsp;
+        <kbd>C</kbd> compose &nbsp;
+        <kbd>?</kbd> all shortcuts
+      </div>
+    </div>
+    <div id="rd-content">
+      <div class="rd-toolbar">
+        <button class="tb-btn" onclick="archiveCurrent()">▤ Archive</button>
+        <button class="tb-btn" onclick="deleteCurrent()">⊗ Delete</button>
+        <div class="tb-sep"></div>
+        <button class="tb-btn" id="star-btn" onclick="starCurrent()">★ Star</button>
+        <button class="tb-btn" onclick="markUnreadCurrent()">◉ Unread</button>
+        <div class="tb-sep"></div>
+        <button class="tb-btn" onclick="forwardCurrent()">↪ Forward</button>
+        <div style="margin-left:auto;display:flex;gap:0.25rem">
+          <button class="tb-btn" onclick="nav(-1)">↑</button>
+          <button class="tb-btn" onclick="nav(1)">↓</button>
+        </div>
+      </div>
+      <div class="rd-scroll">
+        <div class="rd-header">
+          <div class="rd-subject" id="rd-subject">—</div>
+          <div class="rd-meta">
+            <div class="rd-avatar" id="rd-av">?</div>
+            <div class="rd-sender">
+              <div class="rd-sender-name" id="rd-name">—</div>
+              <div class="rd-sender-email" id="rd-email">—</div>
+            </div>
+            <div class="rd-datetime" id="rd-time">—</div>
+          </div>
+        </div>
+        <div class="rd-body" id="rd-body"></div>
+        <div class="att-bar" id="rd-attachments" style="display:none"></div>
+      </div>
+      <div class="reply-wrap">
+        <div class="reply-top">
+          <div class="reply-label">Reply to <em id="reply-to">—</em></div>
+          <div class="reply-btns">
+            <span class="reply-hint">✦ ⌘A for AI</span>
+          </div>
+        </div>
+        <textarea class="rta" id="rta" placeholder="Write a reply..."></textarea>
+        <div class="reply-foot">
+          <div class="reply-hint">⌘↵ send</div>
+          <button class="btn-send" onclick="sendReply()">Send ↑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI PANEL -->
+  <div class="ai-panel" id="ai-panel">
+    <div class="ai-header">
+      <div class="ai-header-title"><span>✦</span> AI Assistant</div>
+      <button class="ib" onclick="toggleAI()">✕</button>
+    </div>
+    <div class="ai-messages" id="ai-messages">
+      <div class="ai-welcome">
+        <strong>Ask me anything about your email.</strong><br><br>
+        Try: "Find all emails from jph this week"<br>
+        "Show me PDFs from the last 3 days"<br>
+        "Summarize my unread emails"
+      </div>
+    </div>
+    <div class="ai-input-wrap">
+      <textarea class="ai-input" id="ai-input" placeholder="Ask about your emails..." rows="1" onkeydown="aiChatKey(event)"></textarea>
+      <button class="ai-send-btn" id="ai-send-btn" onclick="aiChatSend()">↑</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPOSE -->
+<div class="compose-modal" id="compose">
+  <div class="cmp-header"><span class="cmp-title">New Message</span><button class="ib" onclick="closeCompose()">✕</button></div>
+  <div class="cmp-field"><span class="cmp-label">To</span><input type="text" id="c-to" placeholder="email@example.com, another@example.com" spellcheck="false"></div>
+  <div class="cmp-field"><span class="cmp-label">Cc</span><input type="text" id="c-cc" placeholder="optional, comma-separated..." spellcheck="false"></div>
+  <div class="cmp-field"><span class="cmp-label">Sub</span><input type="text" id="c-sub" placeholder="Subject..."></div>
+  <div class="cmp-body" id="c-body" contenteditable="true" data-placeholder="Write your email..."></div>
+  <div class="cmp-footer">
+    <div class="reply-hint">⌘↵ send · Esc close</div>
+    <div style="display:flex;gap:0.4rem">
+      <span class="reply-hint">✦ ⌘A</span>
+      <button class="btn-send" onclick="sendCompose()">Send ↑</button>
+    </div>
+  </div>
+</div>
+
+<!-- CMD PALETTE -->
+<div class="cmd-overlay" id="cmd-overlay" onclick="closeCmdOutside(event)">
+  <div class="cmd-box">
+    <div class="cmd-search">
+      <span class="cmd-search-icon">⌘</span>
+      <input class="cmd-input" id="cmd-input" placeholder="Type a command or search..."
+        oninput="filterCmd(this.value)" onkeydown="cmdKey(event)">
+    </div>
+    <div class="cmd-results" id="cmd-results"></div>
+  </div>
+</div>
+
+<!-- AI HOVER BOX -->
+<div class="ai-hover-overlay" id="ai-hover-overlay" onclick="closeAIHoverOutside(event)">
+  <div class="ai-hover-box" id="ai-hover-box">
+    <div class="ai-hover-header">
+      <span class="ai-hover-title">✦ AI Edit</span>
+      <span class="ai-hover-context" id="ai-hover-ctx"></span>
+      <button class="ib" onclick="closeAIHover()" style="margin-left:auto">✕</button>
+    </div>
+    <div class="ai-hover-selection" id="ai-hover-sel" style="display:none"></div>
+    <div class="ai-hover-input-row">
+      <input type="text" class="ai-hover-input" id="ai-hover-input"
+        placeholder="e.g. make it formal, rewrite casually, translate to Spanish..."
+        onkeydown="aiHoverKey(event)">
+      <button class="ai-send-btn" id="ai-hover-go" onclick="aiHoverGo()">↑</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<button class="ai-toggle-btn" id="ai-toggle-btn" onclick="toggleAI()" title="AI Assistant">✦</button>
+<div class="kbd-hint" id="kbd-hint">
+  <div class="kbd-row"><span class="kbd-k">E</span> Archive <span class="kbd-k">#</span> Delete <span class="kbd-k">S</span> Star</div>
+  <div class="kbd-row"><span class="kbd-k">R</span> Reply <span class="kbd-k">C</span> Compose <span class="kbd-k">F</span> Forward</div>
+  <div class="kbd-row"><span class="kbd-k">↑↓</span> Navigate <span class="kbd-k">U</span> Unread <span class="kbd-k">⌘A</span> AI Edit</div>
+</div>
+
+<script>
+// ── THEME ────────────────────────────────────────────────────
+function toggleTheme() {
+  const isLight = document.documentElement.classList.toggle('light');
+  localStorage.setItem('sm_theme', isLight ? 'light' : 'dark');
+}
+(function initTheme() {
+  if (localStorage.getItem('sm_theme') === 'light') document.documentElement.classList.add('light');
+})();
+
+// ── GOOGLE AUTH CONFIG ───────────────────────────────────────
+const ORIGIN = window.location.origin;
+document.getElementById('redir-uri').textContent = ORIGIN;
+
+const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
+
+let tokenClient = null;
+let accessToken = null;
+let demoMode = false;
+
+// State
+let emails = [], selEmail = null, selIdx = -1;
+let folder = 'INBOX', cat = 'all', searchQ = '';
+let toastT, kbdT;
+
+// ── INIT ─────────────────────────────────────────────────
+window.onload = async () => {
+  const savedId = localStorage.getItem('sm_client_id');
+  if (savedId) document.getElementById('client-id').value = savedId;
+
+  if (sessionStorage.getItem('sm_demo')) { demoMode = true; enterApp(); return; }
+
+  const savedToken = sessionStorage.getItem('sm_gtoken');
+  if (savedToken) {
+    accessToken = savedToken;
+    enterApp();
+  }
+};
+
+// ── SIGN IN ───────────────────────────────────────────────
+function signIn() {
+  const clientId = document.getElementById('client-id').value.trim();
+  if (!clientId) { showAuthErr('Paste your Google OAuth Client ID above, or use demo mode.'); return; }
+  if (!clientId.endsWith('.apps.googleusercontent.com')) { showAuthErr('Client ID should end with .apps.googleusercontent.com'); return; }
+
+  localStorage.setItem('sm_client_id', clientId);
+
+  const btn = document.getElementById('signin-btn');
+  btn.textContent = 'Opening Google sign-in...';
+  btn.disabled = true;
+
+  try {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: GMAIL_SCOPES,
+      callback: (response) => {
+        if (response.error) {
+          showAuthErr('Auth error: ' + response.error);
+          resetSignInBtn();
+          return;
+        }
+        accessToken = response.access_token;
+        sessionStorage.setItem('sm_gtoken', accessToken);
+        enterApp();
+      },
+    });
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  } catch(e) {
+    showAuthErr('Auth error: ' + (e.message || e));
+    resetSignInBtn();
+  }
+}
+
+function resetSignInBtn() {
+  const btn = document.getElementById('signin-btn');
+  btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg> Sign in with Google';
+  btn.disabled = false;
+}
+
+function signOut() {
+  sessionStorage.clear();
+  if (accessToken) {
+    google.accounts.oauth2.revoke(accessToken, () => {});
+  }
+  location.reload();
+}
+
+// ── ENTER APP ─────────────────────────────────────────────
+async function enterApp() {
+  document.getElementById('auth').classList.add('gone');
+  document.getElementById('app').classList.remove('gone');
+
+  // Restore AI chat history
+  restoreAIChat();
+
+  if (demoMode) {
+    setUser('Adventure', 'anantlg@mit.edu');
+    loadDemoEmails();
+    return;
+  }
+
+  try {
+    const res = await gmailFetch('https://www.googleapis.com/oauth2/v2/userinfo');
+    const name = res.name || res.email || 'User';
+    const email = res.email || '';
+    setUser(name, email);
+  } catch(e) {
+    console.error('Profile load error:', e);
+  }
+
+  loadEmails();
+}
+
+function setUser(name, email) {
+  const initials = name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+  document.getElementById('sb-av').textContent = initials;
+  document.getElementById('sb-name').textContent = name;
+  document.getElementById('sb-email').textContent = email;
+}
+
+// ── GMAIL API ─────────────────────────────────────────────
+async function gmailFetch(url, options = {}) {
+  if (!accessToken) throw new Error('Not authenticated');
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      'Authorization': 'Bearer ' + accessToken,
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.headers || {}),
+    }
+  });
+  if (res.status === 401) {
+    sessionStorage.removeItem('sm_gtoken');
+    throw new Error('Session expired. Please sign in again.');
+  }
+  if (res.status === 204) return {};
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || 'HTTP ' + res.status);
+  }
+  return res.json();
+}
+
+// ── LOAD EMAILS ───────────────────────────────────────────
+const FOLDER_NAMES = {
+  INBOX: 'Inbox', SENT: 'Sent', DRAFT: 'Drafts',
+  ARCHIVE: 'Archive', TRASH: 'Trash', SPAM: 'Spam'
+};
+
+let nextPageToken = null;
+
+async function loadEmails(append = false) {
+  if (!append) showListLoading();
+  hideErr();
+  try {
+    let url;
+    if (folder === 'ARCHIVE') {
+      url = `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=50&q=-label:inbox -label:sent -label:draft -label:trash -label:spam`;
+    } else {
+      url = `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=50&labelIds=${folder}`;
+    }
+    if (append && nextPageToken) url += `&pageToken=${nextPageToken}`;
+
+    const data = await gmailFetch(url);
+    nextPageToken = data.nextPageToken || null;
+    const messageIds = data.messages || [];
+
+    const details = await Promise.all(
+      messageIds.map(m =>
+        gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`)
+      )
+    );
+    const newEmails = details.map(mapMsg);
+    if (append) {
+      emails = emails.concat(newEmails);
+    } else {
+      emails = newEmails;
+    }
+    renderList();
+    updateBadge();
+  } catch(e) {
+    showErr(e.message);
+    if (!append) { emails = []; renderList(); }
+  }
+}
+
+async function loadMoreEmails() {
+  if (!nextPageToken) return;
+  const btn = document.getElementById('load-more-btn');
+  if (btn) { btn.textContent = 'Loading...'; btn.disabled = true; }
+  await loadEmails(true);
+}
+
+function getHeader(msg, name) {
+  const h = (msg.payload?.headers || []).find(h => h.name.toLowerCase() === name.toLowerCase());
+  return h ? h.value : '';
+}
+
+function parseFrom(fromStr) {
+  const match = fromStr.match(/^(.+?)\s*<(.+?)>$/);
+  if (match) return { name: match[1].replace(/^["']|["']$/g, ''), email: match[2] };
+  return { name: fromStr, email: fromStr };
+}
+
+function getBody(msg) {
+  const payload = msg.payload;
+  if (!payload) return { content: '', type: 'text' };
+
+  function findPart(parts, mimeType) {
+    for (const part of (parts || [])) {
+      if (part.mimeType === mimeType && part.body?.data) return part;
+      if (part.parts) {
+        const found = findPart(part.parts, mimeType);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  let bodyData = null, bodyType = 'text';
+
+  const htmlPart = findPart(payload.parts, 'text/html') || (payload.mimeType === 'text/html' ? payload : null);
+  const textPart = findPart(payload.parts, 'text/plain') || (payload.mimeType === 'text/plain' ? payload : null);
+
+  if (htmlPart?.body?.data) {
+    bodyData = htmlPart.body.data;
+    bodyType = 'html';
+  } else if (textPart?.body?.data) {
+    bodyData = textPart.body.data;
+    bodyType = 'text';
+  } else if (payload.body?.data) {
+    bodyData = payload.body.data;
+    bodyType = payload.mimeType === 'text/html' ? 'html' : 'text';
+  }
+
+  if (!bodyData) return { content: '', type: 'text' };
+
+  const decoded = atob(bodyData.replace(/-/g, '+').replace(/_/g, '/'));
+  const bytes = new Uint8Array(decoded.length);
+  for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
+  const content = new TextDecoder().decode(bytes);
+  return { content, type: bodyType };
+}
+
+function extractAttachments(msg) {
+  const attachments = [];
+  function walk(parts) {
+    for (const part of (parts || [])) {
+      if (part.filename && part.filename.length > 0 && part.body) {
+        attachments.push({
+          filename: part.filename,
+          mimeType: part.mimeType,
+          size: part.body.size || 0,
+          attachmentId: part.body.attachmentId,
+          partId: part.partId,
+        });
+      }
+      if (part.parts) walk(part.parts);
+    }
+  }
+  walk(msg.payload?.parts);
+  return attachments;
+}
+
+function mapMsg(m) {
+  const from = parseFrom(getHeader(m, 'From'));
+  const body = getBody(m);
+  const labels = m.labelIds || [];
+  return {
+    id: m.id,
+    threadId: m.threadId,
+    msgId: getHeader(m, 'Message-ID'),
+    from: from.name,
+    fromEmail: from.email,
+    subject: getHeader(m, 'Subject') || '(no subject)',
+    preview: m.snippet || '',
+    body: body.content,
+    bodyType: body.type,
+    time: new Date(parseInt(m.internalDate)).toISOString(),
+    unread: labels.includes('UNREAD'),
+    starred: labels.includes('STARRED'),
+    hasAttachment: extractAttachments(m).length > 0,
+    attachments: extractAttachments(m),
+  };
+}
+
+async function refresh() {
+  if (demoMode) { toast('↻ Refreshed (demo)'); return; }
+  await loadEmails();
+  toast('↻ Refreshed');
+}
+
+// ── ATTACHMENT DOWNLOAD ───────────────────────────────────
+async function downloadAttachment(messageId, attachmentId, filename, mimeType) {
+  try {
+    toast('Downloading ' + filename + '...');
+    const data = await gmailFetch(
+      `https://www.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachmentId}`
+    );
+    // data.data is base64url encoded
+    const base64 = data.data.replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('Downloaded ' + filename);
+  } catch(e) {
+    toast('Download failed: ' + e.message);
+  }
+}
+
+function attIcon(mimeType) {
+  if (mimeType?.includes('pdf')) return '📄';
+  if (mimeType?.startsWith('image/')) return '🖼';
+  if (mimeType?.includes('spreadsheet') || mimeType?.includes('excel') || mimeType?.includes('csv')) return '📊';
+  if (mimeType?.includes('document') || mimeType?.includes('word')) return '📝';
+  if (mimeType?.includes('presentation') || mimeType?.includes('powerpoint')) return '📽';
+  if (mimeType?.includes('zip') || mimeType?.includes('archive') || mimeType?.includes('compressed')) return '📦';
+  return '📎';
+}
+
+function fmtSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+// ── DEMO DATA ─────────────────────────────────────────────
+function loadDemo() {
+  sessionStorage.setItem('sm_demo', '1');
+  demoMode = true;
+  enterApp();
+}
+
+function loadDemoEmails() {
+  const ago = m => new Date(Date.now() - m * 60000).toISOString();
+  emails = [
+    { id:'1', from:'Prof. Regina Chen', fromEmail:'rchen@mit.edu', subject:'Anthology model — interpretability review', preview:'Your occlusion analysis looks solid. Questions on MEROPS integration and Coomassie comparison...', body:`<p>Hi Adventure,</p><p>The UniProt annotation mapping in your Anthology occlusion analysis looks solid. I have questions about the MEROPS protease integration — how are you handling confidence weighting when a residue overlaps multiple cleavage sites?</p><p>Also, have you compared predictions against the Coomassie staining data for the recent species panel? Would love to see that correlation matrix.</p><p>Can we meet Thursday at 2pm? Bring your clustermaps.</p><p>— Prof. Chen</p>`, bodyType:'html', time:ago(14), unread:true, starred:true, hasAttachment:false, attachments:[], threadId:'t1', msgId:'<1@demo>' },
+    { id:'2', from:'MIT Hackmed 2026', fromEmail:'hackmed@mit.edu', subject:'GrandHack — reviewer assignments finalized', preview:'3 conflicts flagged for manual resolution. Packets go out Friday, kick-off March 14th...', body:`<p>Hi Adventure,</p><p>Reviewer assignments for GrandHack 2026 are finalized after the blocklist cross-reference. There are 3 flagged conflicts you'll need to resolve manually — see the attached roster sheet.</p><p>Timeline: reviewer packets go out Friday. Kick-off is March 14th at 10am in 32-G449.</p><p>Thanks for organizing,<br>Hackmed Team</p>`, bodyType:'html', time:ago(52), unread:true, starred:false, hasAttachment:true, attachments:[{filename:'reviewer_roster.pdf',mimeType:'application/pdf',size:245000,attachmentId:'demo-att-1'}], threadId:'t2', msgId:'<2@demo>' },
+    { id:'3', from:'GitHub', fromEmail:'noreply@github.com', subject:'[sage-system] PR #14: Recursive agent spawning + SSE viz', preview:'anantlg opened a pull request: Add dynamic sub-agent spawning with SSE visualization...', body:`<p><strong>anantlg</strong> opened PR <strong>#14</strong> in <strong>sage-system/core</strong></p><p><em>Add dynamic sub-agent spawning with SSE visualization</em></p><p>Adds master agent logic using Agno for spawning Gemini sub-agents at runtime. React frontend renders the live agent tree via Server-Sent Events. Includes retry and timeout logic.</p><p><strong>+847 / −103</strong> across 14 files</p>`, bodyType:'html', time:ago(95), unread:false, starred:false, hasAttachment:false, attachments:[], threadId:'t3', msgId:'<3@demo>' },
+    { id:'4', from:'Course 10.301 Staff', fromEmail:'fluid@mit.edu', subject:'Pset 5 graded — hydraulic fracturing problem', preview:'Excellent turbulent flow analysis. Minor deduction on boundary layer drag integration...', body:`<p>Hi Adventure,</p><p>Pset 5 has been graded. Your analysis of the hydraulic fracturing turbulent flow was excellent — clean Buckingham Pi derivation and solid reasoning on Oh/Re/We dependence.</p><p>Minor deduction (−3 pts): boundary layer drag integration dropped a factor in the rowing problem at the laminar-to-turbulent transition. See annotated PDF.</p><p><strong>Grade: 47/50.</strong></p>`, bodyType:'html', time:ago(215), unread:false, starred:false, hasAttachment:true, attachments:[{filename:'pset5_graded.pdf',mimeType:'application/pdf',size:189000,attachmentId:'demo-att-2'},{filename:'drag_analysis.png',mimeType:'image/png',size:52000,attachmentId:'demo-att-3'}], threadId:'t4', msgId:'<4@demo>' },
+    { id:'5', from:'Dr. Lena Hartmann', fromEmail:'l.hartmann@mpi.de', subject:'Re: Molecular embedding dimensionality paper', preview:'The 3D descriptor vs Morgan fingerprint comparison is compelling — NeurIPS workshops reviewable...', body:`<p>Hi Adventure,</p><p>The two-stage autoencoder + frozen encoder approach for LogP prediction is novel — I think it's reviewable at NeurIPS Workshops.</p><p>Suggestion: add ablations at 8D and 512D to bracket the sweet spot. Table 3 needs error bars. Happy to co-author if you expand to ADMET properties.</p><p>— Lena</p>`, bodyType:'html', time:ago(490), unread:false, starred:true, hasAttachment:false, attachments:[], threadId:'t5', msgId:'<5@demo>' },
+    { id:'6', from:'Vercel', fromEmail:'noreply@vercel.com', subject:'Deployment successful — supermail-app', preview:'supermail-app.vercel.app deployed from main in 43s', body:`<p>Your project <strong>supermail-app</strong> was deployed successfully.</p><p>URL: https://supermail-app.vercel.app<br>Duration: 43s · Branch: main · Commit: a3f8b2c</p>`, bodyType:'html', time:ago(680), unread:true, starred:false, hasAttachment:false, attachments:[], threadId:'t6', msgId:'<6@demo>' },
+    { id:'7', from:'MIT IS&T', fromEmail:'ist@mit.edu', subject:'Planned maintenance: Touchstone auth Sunday 2–4am', preview:'Brief interruption to SSO services expected Sunday March 15 between 2:00–4:00am EST...', body:`<p>Dear MIT community,</p><p>IS&T will perform planned maintenance on Touchstone authentication services this Sunday, March 15, between 2:00–4:00am EST. SSO-dependent services may be briefly unavailable.</p><p>If you have questions, contact ist-help@mit.edu.</p>`, bodyType:'html', time:ago(1200), unread:false, starred:false, hasAttachment:false, attachments:[], threadId:'t7', msgId:'<7@demo>' },
+  ];
+  renderList();
+  updateBadge();
+}
+
+// ── RENDER LIST ───────────────────────────────────────────
+function getFiltered() {
+  let list = emails;
+  if (cat === 'unread') list = list.filter(e => e.unread);
+  if (cat === 'starred') list = list.filter(e => e.starred);
+  if (cat === 'attach') list = list.filter(e => e.hasAttachment);
+  if (searchQ) {
+    const q = searchQ.toLowerCase();
+    list = list.filter(e =>
+      e.from.toLowerCase().includes(q) ||
+      e.subject.toLowerCase().includes(q) ||
+      (e.preview || '').toLowerCase().includes(q)
+    );
+  }
+  return list;
+}
+
+function renderList() {
+  const el = document.getElementById('lp-items');
+  const list = getFiltered();
+  if (!list.length) {
+    el.innerHTML = `<div class="loading-state" style="gap:0.5rem"><div style="font-size:1.8rem;opacity:0.15">✉</div><div class="spin-label">No emails here</div></div>`;
+    return;
+  }
+  let html = list.map(e => {
+    const t = fmtTime(e.time);
+    const pills = [e.hasAttachment ? '<span class="em-pill pill-att">📎 attach</span>' : '', e.starred ? '<span class="em-pill pill-star">★ starred</span>' : ''].filter(Boolean).join('');
+    return `<div class="em ${e.unread ? 'unread' : ''} ${selEmail?.id === e.id ? 'sel' : ''}"
+      onclick="openEmail('${e.id}')" data-id="${e.id}">
+      <div class="em-row1">
+        <span class="em-from">${esc(e.from)}</span>
+        <span class="em-time">${t}</span>
+      </div>
+      <div class="em-subj">${esc(e.subject)}</div>
+      <div class="em-prev">${esc(e.preview || '')}</div>
+      ${pills ? `<div class="em-pills">${pills}</div>` : ''}
+    </div>`;
+  }).join('');
+  if (nextPageToken && !demoMode) {
+    html += `<div style="padding:0.75rem 1rem;text-align:center">
+      <button class="btn-demo" id="load-more-btn" onclick="loadMoreEmails()" style="width:100%">Load older emails</button>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+function showListLoading() {
+  document.getElementById('lp-items').innerHTML = `<div class="loading-state"><div class="spin"></div><div class="spin-label">Fetching mail...</div></div>`;
+}
+
+// ── OPEN EMAIL ────────────────────────────────────────────
+function openEmail(id) {
+  const e = emails.find(x => x.id === id);
+  if (!e) return;
+  selEmail = e;
+  selIdx = getFiltered().findIndex(x => x.id === id);
+
+  if (e.unread) {
+    e.unread = false;
+    updateBadge();
+    renderList();
+    if (!demoMode) gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${id}/modify`, { method: 'POST', body: JSON.stringify({ removeLabelIds: ['UNREAD'] }) }).catch(() => {});
+  }
+
+  document.getElementById('rd-empty').style.display = 'none';
+  const content = document.getElementById('rd-content');
+  content.style.display = 'flex';
+  content.classList.add('fadein');
+  setTimeout(() => content.classList.remove('fadein'), 300);
+
+  document.getElementById('rd-subject').textContent = e.subject;
+  document.getElementById('rd-name').textContent = e.from;
+  document.getElementById('rd-email').textContent = e.fromEmail;
+  document.getElementById('rd-time').textContent = fmtFull(e.time);
+  document.getElementById('reply-to').textContent = e.from;
+  document.getElementById('rd-av').textContent = e.from.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+
+  const starBtn = document.getElementById('star-btn');
+  starBtn.classList.toggle('starred', !!e.starred);
+  starBtn.textContent = e.starred ? '★ Starred' : '★ Star';
+
+  document.getElementById('rta').value = '';
+
+  const body = document.getElementById('rd-body');
+  if (e.bodyType === 'html' || (e.body || '').includes('<')) {
+    body.innerHTML = sanitize(e.body);
+  } else {
+    body.innerHTML = esc(e.body || '').replace(/\n/g, '<br>');
+  }
+
+  // Render attachments
+  const attBar = document.getElementById('rd-attachments');
+  if (e.attachments && e.attachments.length > 0) {
+    attBar.style.display = 'flex';
+    attBar.innerHTML = e.attachments.map(a =>
+      `<div class="att-chip" onclick="downloadAttachment('${e.id}', '${a.attachmentId}', '${esc(a.filename)}', '${a.mimeType}')">
+        <span class="att-icon">${attIcon(a.mimeType)}</span>
+        <span class="att-name">${esc(a.filename)}</span>
+        <span class="att-size">${fmtSize(a.size)}</span>
+        <span class="att-dl">↓</span>
+      </div>`
+    ).join('');
+  } else {
+    attBar.style.display = 'none';
+    attBar.innerHTML = '';
+  }
+
+  document.querySelectorAll('.em').forEach(el => el.classList.toggle('sel', el.dataset.id === id));
+}
+
+// ── ACTIONS ───────────────────────────────────────────────
+async function archiveCurrent() {
+  if (!selEmail) return;
+  const id = selEmail.id;
+  removeEmail(id);
+  toast('▤ Archived');
+  if (!demoMode) {
+    gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${id}/modify`, { method: 'POST', body: JSON.stringify({ removeLabelIds: ['INBOX'] }) }).catch(() => {});
+  }
+}
+
+async function deleteCurrent() {
+  if (!selEmail) return;
+  const id = selEmail.id;
+  removeEmail(id);
+  toast('⊗ Deleted');
+  if (!demoMode) {
+    gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${id}/trash`, { method: 'POST' }).catch(() => {});
+  }
+}
+
+function starCurrent() {
+  if (!selEmail) return;
+  selEmail.starred = !selEmail.starred;
+  const btn = document.getElementById('star-btn');
+  btn.classList.toggle('starred', selEmail.starred);
+  btn.textContent = selEmail.starred ? '★ Starred' : '★ Star';
+  toast(selEmail.starred ? '★ Starred' : '☆ Unstarred');
+  renderList();
+  if (!demoMode) {
+    const mod = selEmail.starred ? { addLabelIds: ['STARRED'] } : { removeLabelIds: ['STARRED'] };
+    gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${selEmail.id}/modify`, { method: 'POST', body: JSON.stringify(mod) }).catch(() => {});
+  }
+}
+
+function markUnreadCurrent() {
+  if (!selEmail) return;
+  selEmail.unread = true;
+  toast('◉ Marked unread');
+  updateBadge(); renderList();
+  if (!demoMode) gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${selEmail.id}/modify`, { method: 'POST', body: JSON.stringify({ addLabelIds: ['UNREAD'] }) }).catch(() => {});
+}
+
+function forwardCurrent() {
+  if (!selEmail) return;
+  openCompose();
+  document.getElementById('c-sub').value = 'Fwd: ' + selEmail.subject;
+  document.getElementById('c-body').innerHTML = `<br><br><div style="color:#666;border-left:2px solid #444;padding-left:8px;margin-top:8px">From: ${selEmail.from}<br>${selEmail.body || ''}</div>`;
+}
+
+function removeEmail(id) {
+  const idx = emails.findIndex(e => e.id === id);
+  if (idx >= 0) emails.splice(idx, 1);
+  const list = getFiltered();
+  renderList(); updateBadge();
+  if (!list.length) {
+    selEmail = null;
+    document.getElementById('rd-content').style.display = 'none';
+    document.getElementById('rd-empty').style.display = '';
+    return;
+  }
+  const next = Math.min(selIdx, list.length - 1);
+  openEmail(list[next].id);
+}
+
+function nav(dir) {
+  const list = getFiltered();
+  const ni = selIdx + dir;
+  if (ni >= 0 && ni < list.length) openEmail(list[ni].id);
+}
+
+// ── SEND ──────────────────────────────────────────────────
+function buildRfc822(to, subject, body, cc, inReplyTo, references) {
+  let msg = '';
+  msg += 'To: ' + to + '\r\n';
+  if (cc) msg += 'Cc: ' + cc + '\r\n';
+  msg += 'Subject: ' + subject + '\r\n';
+  if (inReplyTo) msg += 'In-Reply-To: ' + inReplyTo + '\r\n';
+  if (references) msg += 'References: ' + references + '\r\n';
+  msg += 'Content-Type: text/html; charset=UTF-8\r\n';
+  msg += '\r\n' + body;
+  return btoa(unescape(encodeURIComponent(msg))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function sendReply() {
+  if (!selEmail) return;
+  const body = document.getElementById('rta').value.trim();
+  if (!body) return;
+  if (demoMode) { toast('✓ Reply sent (demo)'); document.getElementById('rta').value = ''; return; }
+  try {
+    const raw = buildRfc822(
+      selEmail.fromEmail,
+      'Re: ' + selEmail.subject,
+      body.replace(/\n/g, '<br>'),
+      '',
+      selEmail.msgId,
+      selEmail.msgId
+    );
+    await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      body: JSON.stringify({ raw, threadId: selEmail.threadId })
+    });
+    toast('✓ Reply sent');
+    document.getElementById('rta').value = '';
+  } catch(e) { toast('✕ ' + e.message); }
+}
+
+// ── COMPOSE ───────────────────────────────────────────────
+function openCompose() { document.getElementById('compose').classList.add('open'); document.getElementById('c-to').focus(); }
+function closeCompose() { document.getElementById('compose').classList.remove('open'); }
+
+async function sendCompose() {
+  const to = document.getElementById('c-to').value.trim();
+  const sub = document.getElementById('c-sub').value.trim();
+  const body = document.getElementById('c-body').innerHTML;
+  if (!to || !sub) { toast('✕ Fill in To and Subject'); return; }
+  if (demoMode) { toast('✓ Sent (demo)'); closeCompose(); return; }
+  try {
+    const cc = document.getElementById('c-cc').value.trim();
+    const raw = buildRfc822(to, sub, body, cc);
+    await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      body: JSON.stringify({ raw })
+    });
+    toast('✓ Email sent'); closeCompose();
+  } catch(e) { toast('✕ ' + e.message); }
+}
+
+// ── AI HOVER (unified ⌘A edit) ────────────────────────────
+let aiHoverTarget = null; // { type: 'compose-body'|'reply'|'compose-field', element, selectedText }
+
+function openAIHover() {
+  const overlay = document.getElementById('ai-hover-overlay');
+  const selEl = document.getElementById('ai-hover-sel');
+  const ctxEl = document.getElementById('ai-hover-ctx');
+  const input = document.getElementById('ai-hover-input');
+
+  // Determine context: what's selected and where we are
+  const selectedText = window.getSelection()?.toString()?.trim() || '';
+  const composeOpen = document.getElementById('compose').classList.contains('open');
+  const activeEl = document.activeElement;
+
+  if (composeOpen) {
+    // In compose modal
+    const composeBody = document.getElementById('c-body');
+    const sub = document.getElementById('c-sub').value || '';
+    const to = document.getElementById('c-to').value || '';
+    if (selectedText) {
+      aiHoverTarget = { type: 'compose-body', element: composeBody, selectedText, to, sub };
+      ctxEl.textContent = 'editing selection in compose';
+      selEl.textContent = selectedText;
+      selEl.style.display = 'block';
+      input.placeholder = 'e.g. make it formal, shorter, translate to French...';
+    } else {
+      aiHoverTarget = { type: 'compose-body', element: composeBody, selectedText: '', to, sub };
+      ctxEl.textContent = 'new email' + (to ? ` to ${to}` : '') + (sub ? ` re: ${sub}` : '');
+      selEl.style.display = 'none';
+      input.placeholder = 'e.g. write a casual follow-up, draft a thank you note...';
+    }
+  } else if (activeEl?.id === 'rta' || (selEmail && !composeOpen)) {
+    // In reply area or reading an email
+    const rta = document.getElementById('rta');
+    if (selectedText) {
+      aiHoverTarget = { type: 'reply', element: rta, selectedText };
+      ctxEl.textContent = 'editing selection in reply';
+      selEl.textContent = selectedText;
+      selEl.style.display = 'block';
+      input.placeholder = 'e.g. more polite, add detail about the deadline...';
+    } else if (selEmail) {
+      aiHoverTarget = { type: 'reply', element: rta, selectedText: '', email: selEmail };
+      ctxEl.textContent = `replying to ${selEmail.from}`;
+      selEl.style.display = 'none';
+      input.placeholder = 'e.g. draft a polite decline, ask for more details, say thanks...';
+    }
+  } else {
+    // Nowhere specific — open compose and target it
+    openCompose();
+    const composeBody = document.getElementById('c-body');
+    aiHoverTarget = { type: 'compose-body', element: composeBody, selectedText: '', to: '', sub: '' };
+    ctxEl.textContent = 'new email';
+    selEl.style.display = 'none';
+    input.placeholder = 'e.g. write an email asking about project status, draft an intro...';
+  }
+
+  overlay.classList.add('open');
+  input.value = '';
+  input.disabled = false;
+  setTimeout(() => input.focus(), 50);
+}
+
+function closeAIHover() {
+  document.getElementById('ai-hover-overlay').classList.remove('open');
+  aiHoverTarget = null;
+}
+
+function closeAIHoverOutside(e) {
+  if (e.target === document.getElementById('ai-hover-overlay')) closeAIHover();
+}
+
+function aiHoverKey(e) {
+  if (e.key === 'Enter') { e.preventDefault(); aiHoverGo(); }
+  if (e.key === 'Escape') closeAIHover();
+}
+
+async function aiHoverGo() {
+  const input = document.getElementById('ai-hover-input');
+  const instruction = input.value.trim();
+  if (!instruction || !aiHoverTarget) return;
+
+  input.disabled = true;
+  input.value = 'Thinking...';
+
+  try {
+    let prompt = '';
+
+    if (aiHoverTarget.selectedText) {
+      // Edit selected text with the user's instruction
+      prompt = `Here is some text from an email:\n\n"${aiHoverTarget.selectedText}"\n\nThe user wants you to: ${instruction}\n\nReturn ONLY the rewritten text. No explanation, no quotes, no preamble.`;
+    } else if (aiHoverTarget.type === 'reply' && aiHoverTarget.email) {
+      // Draft a reply with the user's tone/instruction
+      const e = aiHoverTarget.email;
+      prompt = `Draft a reply to this email:\nFrom: ${e.from} <${e.fromEmail}>\nSubject: ${e.subject}\n\n${e.preview}\n\nThe user's instruction: ${instruction}\n\nReturn ONLY the reply body. No subject line, no "Dear...", unless the instruction asks for it.`;
+    } else if (aiHoverTarget.type === 'compose-body') {
+      // Draft new email with user's instruction
+      const to = aiHoverTarget.to;
+      const sub = aiHoverTarget.sub;
+      let context = '';
+      if (to) context += `To: ${to}\n`;
+      if (sub) context += `Subject: ${sub}\n`;
+      prompt = `${context ? context + '\n' : ''}The user wants to write an email. Their instruction: ${instruction}\n\nReturn ONLY the email body. No subject line unless asked.`;
+    }
+
+    const res = await callGemini([
+      { role: 'user', parts: [{ text: prompt }] }
+    ]);
+    const result = res?.parts?.find(p => p.text)?.text || '';
+
+    if (!result) { toast('✕ No result from AI'); return; }
+
+    // Insert the result into the target
+    if (aiHoverTarget.type === 'compose-body') {
+      const el = aiHoverTarget.element;
+      if (aiHoverTarget.selectedText) {
+        // Replace selection within compose body
+        el.innerHTML = el.innerHTML.replace(esc(aiHoverTarget.selectedText), result.replace(/\n/g, '<br>'));
+      } else {
+        el.innerHTML = result.replace(/\n/g, '<br>');
+      }
+    } else if (aiHoverTarget.type === 'reply') {
+      const el = aiHoverTarget.element;
+      if (aiHoverTarget.selectedText) {
+        el.value = el.value.replace(aiHoverTarget.selectedText, result);
+      } else {
+        el.value = result;
+      }
+    }
+
+    toast('✦ Done');
+    closeAIHover();
+  } catch(e) {
+    toast('✕ ' + e.message);
+    input.disabled = false;
+    input.value = instruction;
+  }
+}
+
+// ── FOLDER / FILTER ───────────────────────────────────────
+function switchFolder(f, el) {
+  folder = f;
+  nextPageToken = null;
+  document.querySelectorAll('.sb-item[data-folder]').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('lp-title').textContent = FOLDER_NAMES[f] || f;
+  selEmail = null;
+  document.getElementById('rd-content').style.display = 'none';
+  document.getElementById('rd-empty').style.display = '';
+  demoMode ? renderList() : loadEmails();
+}
+
+function setCat(c, el) {
+  cat = c;
+  document.querySelectorAll('.lp-cat').forEach(p => p.classList.remove('on'));
+  el.classList.add('on');
+  renderList();
+}
+
+function filterList(q) { searchQ = q; renderList(); }
+function markAllRead() { emails.forEach(e => e.unread = false); updateBadge(); renderList(); toast('✓ All marked read'); }
+function updateBadge() {
+  const n = emails.filter(e => e.unread).length;
+  const el = document.getElementById('inbox-badge');
+  el.textContent = n;
+  el.className = 'sb-badge' + (n > 0 ? ' live' : '');
+}
+
+// ── COMMAND PALETTE ───────────────────────────────────────
+const CMDS = [
+  { l: 'Compose new email', ic: '✚', a: openCompose, k: 'C' },
+  { l: 'Archive email', ic: '▤', a: archiveCurrent, k: 'E' },
+  { l: 'Delete email', ic: '⊗', a: deleteCurrent, k: '#' },
+  { l: 'Star / unstar', ic: '★', a: starCurrent, k: 'S' },
+  { l: 'Mark unread', ic: '◉', a: markUnreadCurrent, k: 'U' },
+  { l: 'Reply to email', ic: '↩', a: () => document.getElementById('rta').focus(), k: 'R' },
+  { l: 'Forward email', ic: '↪', a: forwardCurrent, k: 'F' },
+  { l: 'AI Chat Panel', ic: '✦', a: toggleAI },
+  { l: 'AI Edit (⌘A)', ic: '✦', a: openAIHover },
+  { l: 'Go to Inbox', ic: '✉', a: () => document.querySelector('[data-folder="INBOX"]').click() },
+  { l: 'Refresh', ic: '↻', a: refresh },
+  { l: 'Mark all read', ic: '👁', a: markAllRead },
+  { l: 'Toggle theme', ic: '◑', a: toggleTheme },
+  { l: 'Sign out', ic: '✕', a: signOut },
+];
+let cmdSel = 0, cmdFiltered = CMDS;
+
+function openCmd() {
+  document.getElementById('cmd-overlay').classList.add('open');
+  document.getElementById('cmd-input').value = '';
+  cmdFiltered = CMDS; cmdSel = 0; renderCmd();
+  setTimeout(() => document.getElementById('cmd-input').focus(), 30);
+}
+function closeCmd() { document.getElementById('cmd-overlay').classList.remove('open'); }
+function closeCmdOutside(e) { if (e.target === document.getElementById('cmd-overlay')) closeCmd(); }
+function filterCmd(q) {
+  cmdFiltered = q ? CMDS.filter(c => c.l.toLowerCase().includes(q.toLowerCase())) : CMDS;
+  cmdSel = 0; renderCmd();
+}
+function renderCmd() {
+  document.getElementById('cmd-results').innerHTML = cmdFiltered.map((c, i) =>
+    `<div class="cmd-item ${i === cmdSel ? 'hi' : ''}" onclick="runCmd(${i})">
+      <span class="cmd-item-ic">${c.ic}</span>
+      <span>${c.l}</span>
+      ${c.k ? `<span class="cmd-item-ks">${c.k}</span>` : ''}
+    </div>`
+  ).join('');
+}
+function runCmd(i) { closeCmd(); cmdFiltered[i]?.a(); }
+function cmdKey(e) {
+  if (e.key === 'ArrowDown') { cmdSel = Math.min(cmdSel + 1, cmdFiltered.length - 1); renderCmd(); e.preventDefault(); }
+  if (e.key === 'ArrowUp') { cmdSel = Math.max(cmdSel - 1, 0); renderCmd(); e.preventDefault(); }
+  if (e.key === 'Enter') runCmd(cmdSel);
+  if (e.key === 'Escape') closeCmd();
+}
+
+// ── KEYBOARD SHORTCUTS ────────────────────────────────────
+document.addEventListener('keydown', e => {
+  const isInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable;
+  if (e.key === '?' && !isInput) {
+    const h = document.getElementById('kbd-hint');
+    h.classList.add('show');
+    clearTimeout(kbdT);
+    kbdT = setTimeout(() => h.classList.remove('show'), 3000);
+  }
+  if (e.key === 'Escape') { closeCmd(); closeCompose(); closeAIHover(); }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'a') { e.preventDefault(); openAIHover(); return; }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); openCmd(); }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    if (document.getElementById('compose').classList.contains('open')) sendCompose();
+    else sendReply();
+  }
+  if (isInput || document.getElementById('cmd-overlay').classList.contains('open')) return;
+  const map = { c: openCompose, e: archiveCurrent, s: starCurrent, r: () => document.getElementById('rta').focus(), f: forwardCurrent, u: markUnreadCurrent };
+  if (e.key === '#') deleteCurrent();
+  if (map[e.key]) map[e.key]();
+  if (e.key === 'ArrowUp') { e.preventDefault(); nav(-1); }
+  if (e.key === 'ArrowDown') { e.preventDefault(); nav(1); }
+});
+
+// ── SETUP GUIDE TOGGLE ────────────────────────────────────
+function toggleSetup(btn) {
+  const body = document.getElementById('setup-body');
+  const arrow = document.getElementById('setup-arrow');
+  const isOpen = body.classList.toggle('open');
+  arrow.textContent = isOpen ? '▲' : '▼';
+}
+
+// ── UTILS ─────────────────────────────────────────────────
+function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function sanitize(h) { return (h || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').replace(/on\w+\s*=\s*["'][^"']*["']/gi, ''); }
+function fmtTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso), now = new Date(), df = now - d;
+  if (df < 3600000) return Math.floor(df / 60000) + 'm';
+  if (df < 86400000) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (df < 604800000) return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+function fmtFull(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function showErr(msg) { const el = document.getElementById('lp-err'); el.textContent = '⚠ ' + msg; el.classList.add('show'); }
+function hideErr() { document.getElementById('lp-err').classList.remove('show'); }
+function showAuthErr(msg) { const el = document.getElementById('auth-err'); el.textContent = msg; el.classList.add('show'); }
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ═══════════════════════════════════════════════════════════
+// ── AI CHAT PANEL (Gemini + Function Calling) ─────────────
+// ═══════════════════════════════════════════════════════════
+
+let aiChatHistory = []; // { role: 'user'|'model', parts: [...] }
+let aiIsProcessing = false;
+
+function toggleAI() {
+  document.getElementById('ai-panel').classList.toggle('open');
+  if (document.getElementById('ai-panel').classList.contains('open')) {
+    setTimeout(() => document.getElementById('ai-input').focus(), 100);
+  }
+}
+
+// ── Gemini API helper ──────────────────────────────────────
+const GEMINI_TOOLS = [{
+  functionDeclarations: [
+    {
+      name: 'search_emails',
+      description: 'Search emails in the user\'s mailbox. Returns a list of matching emails with id, from, subject, date, snippet, and attachment info. Use the structured date params (after/before) for precise date filtering rather than putting dates in the query string — they are more reliable. The query param uses Gmail search syntax for everything else (from:, to:, subject:, has:attachment, filename:pdf, is:unread, is:starred, etc.).',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          query: { type: 'STRING', description: 'Gmail search query WITHOUT date operators (e.g. "from:jph has:attachment", "filename:pdf")' },
+          after: { type: 'STRING', description: 'Only emails on or after this date, YYYY-MM-DD format. For "today" use today\'s exact date.' },
+          before: { type: 'STRING', description: 'Only emails strictly before this date, YYYY-MM-DD format. To search a single day, set after=that day and before=the next day.' },
+          maxResults: { type: 'INTEGER', description: 'Max results to return (default 10, max 50)' },
+          label: { type: 'STRING', description: 'Gmail label to search within (e.g. INBOX, SENT, TRASH). Defaults to current folder.' },
+        },
+        required: ['query']
+      }
+    },
+    {
+      name: 'get_email',
+      description: 'Get the full content of a specific email by its ID, including body text and list of attachments with their IDs, filenames, and sizes.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          messageId: { type: 'STRING', description: 'The Gmail message ID' }
+        },
+        required: ['messageId']
+      }
+    },
+    {
+      name: 'get_attachment',
+      description: 'Force-download an email attachment to the user\'s computer. ONLY call this when the user explicitly asks to download a specific file. Do NOT call this just to show attachments — attachment cards are rendered automatically from search_emails and get_email results.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          messageId: { type: 'STRING', description: 'The Gmail message ID containing the attachment' },
+          attachmentId: { type: 'STRING', description: 'The attachment ID from get_email results' },
+          filename: { type: 'STRING', description: 'The filename of the attachment' },
+          mimeType: { type: 'STRING', description: 'The MIME type of the attachment' },
+        },
+        required: ['messageId', 'attachmentId', 'filename']
+      }
+    },
+    {
+      name: 'list_visible_emails',
+      description: 'List the emails currently visible in the user\'s email list (respects active folder, search query, and category filters). Use this when the user says "these emails", "the ones I\'m looking at", or references the current view.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {},
+      }
+    },
+  ]
+}];
+
+async function callGemini(contents, tools) {
+  const model = (typeof GEMINI_MODEL !== 'undefined') ? GEMINI_MODEL : 'gemini-2.5-flash';
+  const body = { contents, model };
+  if (tools) body.tools = tools;
+  const res = await fetch('/api/gemini', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'Gemini API error ' + res.status);
+  }
+  const data = await res.json();
+  const candidate = data.candidates?.[0];
+  if (!candidate) throw new Error('No response from Gemini');
+  return candidate.content;
+}
+
+// ── Tool execution ─────────────────────────────────────────
+async function executeToolCall(fnName, fnArgs) {
+  if (demoMode && fnName === 'search_emails') {
+    // In demo mode, search locally
+    const q = (fnArgs.query || '').toLowerCase();
+    const results = emails.filter(e =>
+      e.from.toLowerCase().includes(q) ||
+      e.fromEmail.toLowerCase().includes(q) ||
+      e.subject.toLowerCase().includes(q) ||
+      (e.preview || '').toLowerCase().includes(q)
+    );
+    return { results: results.map(e => ({ id: e.id, from: e.from, fromEmail: e.fromEmail, subject: e.subject, date: e.time, snippet: e.preview, hasAttachment: e.hasAttachment, attachments: (e.attachments || []).map(a => ({ filename: a.filename, mimeType: a.mimeType, size: a.size })) })) };
+  }
+
+  if (fnName === 'search_emails') {
+    const maxResults = Math.min(fnArgs.maxResults || 10, 50);
+    let query = fnArgs.query || '';
+    // Inject structured date params into Gmail query (more reliable than LLM formatting)
+    if (fnArgs.after) query += ` after:${fnArgs.after.replace(/-/g, '/')}`;
+    if (fnArgs.before) query += ` before:${fnArgs.before.replace(/-/g, '/')}`;
+    if (fnArgs.label) query += ` label:${fnArgs.label.toLowerCase()}`;
+    const url = `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=${encodeURIComponent(query)}`;
+    const listData = await gmailFetch(url);
+    const msgIds = listData.messages || [];
+    if (msgIds.length === 0) return { results: [], query_used: query.trim() };
+
+    const details = await Promise.all(
+      msgIds.map(m => gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`))
+    );
+
+    let results = details.map(m => {
+      const from = parseFrom(getHeader(m, 'From'));
+      const atts = extractAttachments(m);
+      return {
+        id: m.id,
+        from: from.name,
+        fromEmail: from.email,
+        subject: getHeader(m, 'Subject') || '(no subject)',
+        date: new Date(parseInt(m.internalDate)).toISOString(),
+        snippet: m.snippet,
+        hasAttachment: atts.length > 0,
+        attachments: atts.map(a => ({ filename: a.filename, mimeType: a.mimeType, size: a.size, attachmentId: a.attachmentId })),
+      };
+    });
+
+    // Hard post-filter by date as safety net (Gmail's after/before can be off by timezone)
+    if (fnArgs.after) {
+      const afterMs = new Date(fnArgs.after + 'T00:00:00').getTime();
+      results = results.filter(r => new Date(r.date).getTime() >= afterMs);
+    }
+    if (fnArgs.before) {
+      const beforeMs = new Date(fnArgs.before + 'T00:00:00').getTime();
+      results = results.filter(r => new Date(r.date).getTime() < beforeMs);
+    }
+
+    return {
+      results,
+      query_used: query.trim()
+    };
+  }
+
+  if (fnName === 'get_email') {
+    // Check local cache first
+    const local = emails.find(e => e.id === fnArgs.messageId);
+    if (local) {
+      return { id: local.id, from: local.from, fromEmail: local.fromEmail, subject: local.subject, date: local.time, body: local.bodyType === 'html' ? local.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : local.body, attachments: (local.attachments || []).map(a => ({ filename: a.filename, mimeType: a.mimeType, size: a.size, attachmentId: a.attachmentId })) };
+    }
+    if (demoMode) return { error: 'Email not found in demo' };
+    const m = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${fnArgs.messageId}?format=full`);
+    const from = parseFrom(getHeader(m, 'From'));
+    const body = getBody(m);
+    const atts = extractAttachments(m);
+    const bodyText = body.type === 'html' ? body.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : body.content;
+    return { id: m.id, from: from.name, fromEmail: from.email, subject: getHeader(m, 'Subject'), date: new Date(parseInt(m.internalDate)).toISOString(), body: bodyText.slice(0, 3000), attachments: atts.map(a => ({ filename: a.filename, mimeType: a.mimeType, size: a.size, attachmentId: a.attachmentId })) };
+  }
+
+  if (fnName === 'get_attachment') {
+    if (demoMode) return { filename: fnArgs.filename, status: 'demo_mode', message: 'Download not available in demo mode' };
+    // Actually trigger the download for the user
+    downloadAttachment(fnArgs.messageId, fnArgs.attachmentId, fnArgs.filename, fnArgs.mimeType || 'application/octet-stream');
+    return { filename: fnArgs.filename, status: 'downloading', message: `Downloading ${fnArgs.filename} for the user.` };
+  }
+
+  if (fnName === 'list_visible_emails') {
+    const visible = getFiltered();
+    return {
+      folder: folder,
+      filter: cat,
+      searchQuery: searchQ,
+      count: visible.length,
+      emails: visible.map(e => ({ id: e.id, from: e.from, fromEmail: e.fromEmail, subject: e.subject, date: e.time, snippet: e.preview, unread: e.unread, starred: e.starred, hasAttachment: e.hasAttachment, attachments: (e.attachments || []).map(a => ({ filename: a.filename, mimeType: a.mimeType, size: a.size, attachmentId: a.attachmentId })) }))
+    };
+  }
+
+  return { error: 'Unknown tool: ' + fnName };
+}
+
+// ── Chat UI ────────────────────────────────────────────────
+function renderAIMessages() {
+  const container = document.getElementById('ai-messages');
+  if (aiChatHistory.length === 0) {
+    container.innerHTML = `<div class="ai-welcome"><strong>Ask me anything about your email.</strong><br><br>Try: "Find all emails from jph this week"<br>"Show me PDFs from the last 3 days"<br>"Summarize my unread emails"</div>`;
+    return;
+  }
+
+  let html = '';
+  let pendingCards = ''; // cards from tool results, rendered after next model text
+
+  for (const msg of aiChatHistory) {
+    if (msg.role === 'user') {
+      const text = msg.parts.map(p => p.text || '').join('');
+      if (text) html += `<div class="ai-msg user">${esc(text)}</div>`;
+      pendingCards = '';
+    } else if (msg.role === 'model') {
+      // Check if this has text (final response) or just tool calls (intermediate)
+      const hasText = msg.parts.some(p => p.text);
+      const hasToolCalls = msg.parts.some(p => p.functionCall);
+
+      if (hasToolCalls && !hasText) {
+        // Intermediate tool-calling step — show subtle indicator
+        for (const part of msg.parts) {
+          if (part.functionCall) {
+            html += `<div class="ai-msg tool-call">⚡ ${esc(part.functionCall.name)}</div>`;
+          }
+        }
+      }
+      if (hasText) {
+        for (const part of msg.parts) {
+          if (part.text) {
+            html += `<div class="ai-msg assistant">${formatAIText(part.text)}</div>`;
+          }
+        }
+        // Flush any pending cards from tool results BELOW the model's text
+        if (pendingCards) {
+          html += pendingCards;
+          pendingCards = '';
+        }
+      }
+    } else if (msg.role === 'function') {
+      // Collect cards from tool results — will render after next model text
+      for (const part of msg.parts) {
+        const resp = part.functionResponse?.response;
+        if (!resp) continue;
+        const emailList = resp.results || resp.emails;
+        if (emailList && emailList.length > 0) {
+          pendingCards += renderEmailCards(emailList);
+        }
+        if (resp.id && resp.attachments && resp.attachments.length > 0) {
+          pendingCards += renderAttachmentCards(resp.id, resp.from, resp.subject, resp.date, resp.attachments);
+        }
+        if (resp.status === 'downloading') {
+          pendingCards += `<div class="ai-msg tool-call">⬇ Downloading ${esc(resp.filename)}...</div>`;
+        }
+      }
+    }
+  }
+  // If there are leftover pending cards (e.g. processing still ongoing), show them
+  if (pendingCards) html += pendingCards;
+
+  if (aiIsProcessing) {
+    html += `<div class="ai-msg assistant"><div class="ai-typing"><span></span><span></span><span></span></div></div>`;
+  }
+
+  container.innerHTML = html;
+  container.scrollTop = container.scrollHeight;
+}
+
+function formatAIText(text) {
+  // Simple markdown-like formatting
+  let html = esc(text);
+  // Bold
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Code blocks
+  html = html.replace(/```([\s\S]*?)```/g, '<pre>$1</pre>');
+  // Inline code
+  html = html.replace(/`(.+?)`/g, '<code>$1</code>');
+  // Line breaks
+  html = html.replace(/\n/g, '<br>');
+  return html;
+}
+
+function renderEmailCards(emailList) {
+  let html = '<div class="ai-msg assistant" style="padding:0.4rem 0.6rem">';
+  for (const e of emailList) {
+    const date = e.date ? fmtTime(e.date) : '';
+    const hasAtts = e.hasAttachment && e.attachments && e.attachments.length > 0;
+    html += `<div class="ai-email-card" onclick="openEmail('${e.id}')" style="cursor:pointer">
+      <div class="ai-card-row1">
+        <span class="ai-card-from">${esc(e.from || e.fromEmail || '')}</span>
+        <span class="ai-card-date">${date}</span>
+      </div>
+      <div class="ai-card-subject">${esc(e.subject || '')}</div>`;
+    if (e.snippet) {
+      html += `<div class="ai-card-snippet">${esc(e.snippet).slice(0, 120)}</div>`;
+    }
+    if (hasAtts) {
+      html += '<div class="ai-card-atts">';
+      for (const a of e.attachments) {
+        html += `<div class="att-chip" onclick="event.stopPropagation(); downloadAttachment('${e.id}', '${a.attachmentId || ''}', '${esc(a.filename)}', '${a.mimeType || 'application/octet-stream'}')">
+          <span class="att-icon">${attIcon(a.mimeType)}</span>
+          <span class="att-name">${esc(a.filename)}</span>
+          <span class="att-size">${fmtSize(a.size)}</span>
+          <span class="att-dl">⬇</span>
+        </div>`;
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderAttachmentCards(messageId, from, subject, date, attachments) {
+  let html = '<div class="ai-msg assistant" style="padding:0.4rem 0.6rem">';
+  html += `<div class="ai-card-subject" style="margin-bottom:0.3rem">${esc(subject || '')}</div>`;
+  html += `<div class="ai-card-row1"><span class="ai-card-from">${esc(from || '')}</span><span class="ai-card-date">${date ? fmtTime(date) : ''}</span></div>`;
+  html += '<div class="ai-card-atts">';
+  for (const a of attachments) {
+    html += `<div class="att-chip" onclick="downloadAttachment('${messageId}', '${a.attachmentId || ''}', '${esc(a.filename)}', '${a.mimeType || 'application/octet-stream'}')">
+      <span class="att-icon">${attIcon(a.mimeType)}</span>
+      <span class="att-name">${esc(a.filename)}</span>
+      <span class="att-size">${fmtSize(a.size)}</span>
+      <span class="att-dl">⬇</span>
+    </div>`;
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function saveAIChat() {
+  // Save text + function messages so cards persist across reloads
+  const simplified = aiChatHistory.filter(m => m.role === 'user' || m.role === 'model' || m.role === 'function').map(m => {
+    if (m.role === 'user' || m.role === 'function') return m;
+    // For model, keep text parts
+    const textParts = m.parts.filter(p => p.text);
+    if (textParts.length === 0) return null;
+    return { role: 'model', parts: textParts };
+  }).filter(Boolean);
+  sessionStorage.setItem('sm_ai_chat', JSON.stringify(simplified));
+}
+
+function restoreAIChat() {
+  try {
+    const saved = sessionStorage.getItem('sm_ai_chat');
+    if (saved) {
+      aiChatHistory = JSON.parse(saved);
+      renderAIMessages();
+    }
+  } catch { /* ignore */ }
+}
+
+function aiChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    aiChatSend();
+  }
+}
+
+async function aiChatSend() {
+  const input = document.getElementById('ai-input');
+  const text = input.value.trim();
+  if (!text || aiIsProcessing) return;
+
+  input.value = '';
+
+  // Add user message
+  aiChatHistory.push({ role: 'user', parts: [{ text }] });
+  aiIsProcessing = true;
+  renderAIMessages();
+
+  try {
+    await processAITurn();
+  } catch(e) {
+    aiChatHistory.push({ role: 'model', parts: [{ text: 'Error: ' + e.message }] });
+  }
+
+  aiIsProcessing = false;
+  renderAIMessages();
+  saveAIChat();
+}
+
+async function processAITurn() {
+  // Build system context
+  const systemContext = {
+    role: 'user',
+    parts: [{ text: `[System] You are an AI email assistant integrated into SuperMail, a Gmail client. You help users search, read, and manage their emails.
+
+Current user view:
+- Folder: ${folder}
+- Filter tab: ${cat}
+- Search box: "${searchQ}"
+- Emails loaded: ${emails.length}
+- Today: ${new Date().toISOString().split('T')[0]}
+
+IMPORTANT RULES:
+1. When the user has an active search query or filter, ALWAYS prefer list_visible_emails first — it returns exactly what the user is already looking at. Only use search_emails if the user asks to search beyond what's currently visible, or if list_visible_emails doesn't have enough info.
+2. When the user says "today", use the exact date (${new Date().toISOString().split('T')[0]}). "Today" means ONLY today, not yesterday. Use after: and before: date operators precisely. For Gmail search: after:YYYY/MM/DD means messages from that date onward, before:YYYY/MM/DD means messages before that date.
+3. When showing results, format them clearly.
+4. Attachment cards with download buttons are rendered automatically from search_emails and get_email results. Do NOT call get_attachment unless the user explicitly asks to download a specific file.
+5. Always use tools to access email data rather than guessing.` }]
+  };
+
+  // Build conversation for Gemini (insert system context at start)
+  const contents = [systemContext, ...aiChatHistory];
+
+  const maxIterations = 5;
+  for (let i = 0; i < maxIterations; i++) {
+    const responseContent = await callGemini(contents, GEMINI_TOOLS);
+
+    // Add model response to history
+    aiChatHistory.push(responseContent);
+    contents.push(responseContent);
+
+    // Check if there are function calls
+    const functionCalls = (responseContent.parts || []).filter(p => p.functionCall);
+
+    if (functionCalls.length === 0) {
+      // No function calls — done
+      renderAIMessages();
+      return;
+    }
+
+    // Execute function calls and add results
+    renderAIMessages(); // Show tool call in UI
+
+    const functionResponses = [];
+    for (const part of functionCalls) {
+      const result = await executeToolCall(part.functionCall.name, part.functionCall.args);
+      functionResponses.push({
+        functionResponse: {
+          name: part.functionCall.name,
+          response: result,
+        }
+      });
+    }
+
+    const toolResultMsg = { role: 'function', parts: functionResponses };
+    aiChatHistory.push(toolResultMsg);
+    contents.push(toolResultMsg);
+
+    // Continue the loop — Gemini will process tool results and either call more tools or respond with text
+  }
+}
+</script>
+</body>
+</html>
