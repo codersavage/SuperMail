@@ -538,13 +538,6 @@ html.light .theme-toggle::after { transform: translateX(16px); }
         <h2>Connect your Gmail account</h2>
         <p>Uses OAuth 2.0 via Google's identity platform. Supports personal Gmail and Google Workspace accounts.</p>
       </div>
-      <div class="auth-sep"></div>
-      <div class="auth-field">
-        <div class="field-row">
-          <label>Google OAuth Client ID</label>
-          <input type="text" id="client-id" placeholder="123456789-xxxxxxxxxx.apps.googleusercontent.com" spellcheck="false" autocomplete="off">
-        </div>
-      </div>
       <div class="auth-err" id="auth-err"></div>
       <div class="auth-bottom">
         <button class="btn-ms" id="signin-btn" onclick="signIn()">
@@ -557,43 +550,6 @@ html.light .theme-toggle::after { transform: translateX(16px); }
           Sign in with Google
         </button>
         <button class="btn-demo" onclick="loadDemo()">Explore with demo data →</button>
-      </div>
-    </div>
-
-    <div class="setup-guide">
-      <button class="setup-toggle" onclick="toggleSetup(this)">
-        How to get a Client ID (5 min)
-        <span id="setup-arrow">▼</span>
-      </button>
-      <div class="setup-body" id="setup-body">
-        <div class="setup-step">
-          <span class="step-num">1</span>
-          <span>Go to <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a> and sign in with your Google account.</span>
-        </div>
-        <div class="setup-step">
-          <span class="step-num">2</span>
-          <span>Create a new project (or select an existing one). Name it anything (e.g. "SuperMail").</span>
-        </div>
-        <div class="setup-step">
-          <span class="step-num">3</span>
-          <span>Go to <strong>APIs &amp; Services → Library</strong>. Search for <strong>Gmail API</strong> and click <strong>Enable</strong>.</span>
-        </div>
-        <div class="setup-step">
-          <span class="step-num">4</span>
-          <span>Go to <strong>APIs &amp; Services → OAuth consent screen</strong>. Choose <strong>External</strong> user type. Fill in the app name and your email. Add scopes: <code>gmail.readonly</code> <code>gmail.send</code> <code>gmail.modify</code>. Add your Gmail as a test user.</span>
-        </div>
-        <div class="setup-step">
-          <span class="step-num">5</span>
-          <span>Go to <strong>APIs &amp; Services → Credentials</strong> → <strong>Create Credentials → OAuth client ID</strong>. Choose <strong>Web application</strong>.</span>
-        </div>
-        <div class="setup-step">
-          <span class="step-num">6</span>
-          <span>Under <strong>Authorized JavaScript origins</strong>, add: <code id="redir-uri">loading...</code>. Under <strong>Authorized redirect URIs</strong>, add the same URL.</span>
-        </div>
-        <div class="setup-step">
-          <span class="step-num">7</span>
-          <span>Click <strong>Create</strong>. Copy the <strong>Client ID</strong> (ends in <code>.apps.googleusercontent.com</code>) and paste it above.</span>
-        </div>
       </div>
     </div>
   </div>
@@ -833,8 +789,7 @@ function toggleTheme() {
 })();
 
 // ── GOOGLE AUTH CONFIG ───────────────────────────────────────
-const ORIGIN = window.location.origin;
-document.getElementById('redir-uri').textContent = ORIGIN;
+const GOOGLE_CLIENT_ID = '801928496692-egj0se3prlquroad4bm5qral6aobgb18.apps.googleusercontent.com';
 
 const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
 
@@ -849,9 +804,6 @@ let toastT, kbdT;
 
 // ── INIT ─────────────────────────────────────────────────
 window.onload = async () => {
-  const savedId = localStorage.getItem('sm_client_id');
-  if (savedId) document.getElementById('client-id').value = savedId;
-
   if (sessionStorage.getItem('sm_demo')) { demoMode = true; enterApp(); return; }
 
   const savedToken = sessionStorage.getItem('sm_gtoken');
@@ -863,11 +815,7 @@ window.onload = async () => {
 
 // ── SIGN IN ───────────────────────────────────────────────
 function signIn() {
-  const clientId = document.getElementById('client-id').value.trim();
-  if (!clientId) { showAuthErr('Paste your Google OAuth Client ID above, or use demo mode.'); return; }
-  if (!clientId.endsWith('.apps.googleusercontent.com')) { showAuthErr('Client ID should end with .apps.googleusercontent.com'); return; }
-
-  localStorage.setItem('sm_client_id', clientId);
+  const clientId = GOOGLE_CLIENT_ID;
 
   const btn = document.getElementById('signin-btn');
   btn.textContent = 'Opening Google sign-in...';
@@ -1658,12 +1606,6 @@ document.addEventListener('keydown', e => {
 });
 
 // ── SETUP GUIDE TOGGLE ────────────────────────────────────
-function toggleSetup(btn) {
-  const body = document.getElementById('setup-body');
-  const arrow = document.getElementById('setup-arrow');
-  const isOpen = body.classList.toggle('open');
-  arrow.textContent = isOpen ? '▲' : '▼';
-}
 
 // ── UTILS ─────────────────────────────────────────────────
 function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
