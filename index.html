@@ -1760,13 +1760,22 @@ const GEMINI_TOOLS = [{
 
 async function callGemini(contents, tools) {
   const model = (typeof GEMINI_MODEL !== 'undefined') ? GEMINI_MODEL : 'gemini-2.5-flash';
-  const body = { contents, model };
-  if (tools) body.tools = tools;
-  const res = await fetch('/api/gemini', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  const hasLocalKey = typeof GEMINI_API_KEY !== 'undefined' && GEMINI_API_KEY && !GEMINI_API_KEY.startsWith('paste_');
+
+  let res;
+  if (hasLocalKey) {
+    // Local dev with env.js — call Gemini directly
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+    const body = { contents };
+    if (tools) body.tools = tools;
+    res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } else {
+    // Production — go through Netlify serverless proxy
+    const body = { contents, model };
+    if (tools) body.tools = tools;
+    res = await fetch('/api/gemini', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error?.message || 'Gemini API error ' + res.status);

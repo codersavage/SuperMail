@@ -1,5 +1,6 @@
 # Local environment — never commit these
 .env
+env.js
 adicov.env
 
 # Netlify build output
