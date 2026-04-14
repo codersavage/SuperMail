@@ -168,6 +168,8 @@ html.light .theme-toggle::after { transform: translateX(16px); }
 .sb-item.active { color: var(--text); }
 .sb-item.active::before { opacity: 1; background: var(--accent-dim); }
 .sb-item.active::after { content: ''; position: absolute; left: 0; top: 25%; bottom: 25%; width: 2px; background: var(--accent); border-radius: 0 2px 2px 0; }
+.sb-item.drag-over { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+.sb-item.drag-over::before { opacity: 1; background: var(--accent-dim); }
 .sb-item > * { position: relative; }
 .sb-ic { font-size: 0.82rem; width: 15px; text-align: center; opacity: 0.6; flex-shrink: 0; }
 .sb-item.active .sb-ic { opacity: 1; }
@@ -226,6 +228,7 @@ html.light .theme-toggle::after { transform: translateX(16px); }
 .em.sel::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
 .em.unread .em-from { color: var(--text); font-weight: 600; }
 .em.unread::after { content: ''; position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.em.dragging { opacity: 0.4; }
 .em-row1 { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.15rem; }
 .em-from { font-size: 0.8rem; color: var(--text2); }
 .em-time { font-family: var(--mono); font-size: 0.6rem; color: var(--text3); flex-shrink: 0; }
@@ -351,6 +354,32 @@ html.light .theme-toggle::after { transform: translateX(16px); }
   cursor: pointer; transition: all 0.18s; display: flex; align-items: center; gap: 0.3rem;
 }
 .btn-send:hover { background: var(--accent2); transform: translateY(-1px); }
+.reply-mode-wrap { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; }
+.reply-mode-sel {
+  font-family: var(--mono); font-size: 0.68rem; padding: 2px 6px;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text2); cursor: pointer; outline: none; flex-shrink: 0;
+}
+.reply-mode-sel:focus { border-color: var(--accent2); }
+.reply-recipients {
+  flex: 1; min-width: 0; font-family: var(--mono); font-size: 0.68rem;
+  background: none; border: none; border-bottom: 1px solid var(--border);
+  color: var(--text2); padding: 2px 4px; outline: none;
+}
+.reply-recipients:focus { border-color: var(--accent2); }
+.reply-cc-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.35rem; }
+.reply-cc-label { font-family: var(--mono); font-size: 0.62rem; color: var(--text3); flex-shrink: 0; }
+.reply-cc-input {
+  flex: 1; font-family: var(--mono); font-size: 0.68rem;
+  background: none; border: none; border-bottom: 1px solid var(--border);
+  color: var(--text2); padding: 2px 4px; outline: none;
+}
+.reply-cc-input:focus { border-color: var(--accent2); }
+.reply-gemini-badge {
+  font-family: var(--mono); font-size: 0.58rem; padding: 1px 6px;
+  background: var(--accent-dim); border: 1px solid var(--accent2); border-radius: 3px;
+  color: var(--accent); flex-shrink: 0;
+}
 
 /* ─── COMPOSE ─────────────────────────────────────────────── */
 .compose-modal {
@@ -707,10 +736,23 @@ html.light .theme-toggle::after { transform: translateX(16px); }
       </div>
       <div class="reply-wrap">
         <div class="reply-top">
-          <div class="reply-label">Reply to <em id="reply-to">—</em></div>
+          <div class="reply-mode-wrap">
+            <select class="reply-mode-sel" id="reply-mode" onchange="onReplyModeChange()">
+              <option value="reply">Reply</option>
+              <option value="reply-all">Reply All</option>
+              <option value="forward">Forward</option>
+            </select>
+            <span class="reply-cc-label">To:</span>
+            <input class="reply-recipients" id="reply-recipients" placeholder="recipient@email.com" oninput="checkGeminiRecipient()">
+          </div>
           <div class="reply-btns">
+            <span class="reply-gemini-badge" id="gemini-badge" style="display:none">✦ Gemini</span>
             <span class="reply-hint">✦ ⌘A for AI</span>
           </div>
+        </div>
+        <div class="reply-cc-row" id="reply-cc-row" style="display:none">
+          <span class="reply-cc-label">Cc:</span>
+          <input class="reply-cc-input" id="reply-cc" placeholder="cc@email.com">
         </div>
         <textarea class="rta" id="rta" placeholder="Write a reply..."></textarea>
         <div class="reply-foot">
@@ -1093,6 +1135,8 @@ function mapMsg(m) {
     msgId: getHeader(m, 'Message-ID'),
     from: from.name,
     fromEmail: from.email,
+    to: getHeader(m, 'To'),
+    cc: getHeader(m, 'Cc'),
     subject: getHeader(m, 'Subject') || '(no subject)',
     preview: m.snippet || '',
     body: body.content,
@@ -1202,7 +1246,8 @@ function renderList() {
     const t = fmtTime(e.time);
     const pills = [e.hasAttachment ? '<span class="em-pill pill-att">📎 attach</span>' : '', e.starred ? '<span class="em-pill pill-star">★ starred</span>' : ''].filter(Boolean).join('');
     return `<div class="em ${e.unread ? 'unread' : ''} ${selEmail?.id === e.id ? 'sel' : ''}"
-      onclick="openEmail('${e.id}')" data-id="${e.id}">
+      onclick="openEmail('${e.id}')" data-id="${e.id}"
+      draggable="true" ondragstart="onEmailDragStart(event, '${e.id}')" ondragend="onEmailDragEnd(event)">
       <div class="em-row1">
         <span class="em-from">${esc(e.from)}</span>
         <span class="em-time">${t}</span>
@@ -1253,7 +1298,10 @@ async function openEmail(id) {
   starBtn.textContent = e.starred ? '★ Starred' : '★ Star';
 
   document.getElementById('rta').value = '';
-  document.getElementById('reply-to').textContent = e.from;
+  document.getElementById('reply-mode').value = 'reply';
+  document.getElementById('reply-cc-row').style.display = 'none';
+  document.getElementById('reply-cc').value = '';
+  document.getElementById('gemini-badge').style.display = 'none';
 
   document.querySelectorAll('.em').forEach(el => el.classList.toggle('sel', el.dataset.id === id));
 
@@ -1263,17 +1311,14 @@ async function openEmail(id) {
     try {
       const threadData = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/threads/${e.threadId}?format=full`);
       threadMessages = (threadData.messages || []).map(mapMsg);
-      // Update reply-to with the last message sender
-      const lastMsg = threadMessages[threadMessages.length - 1];
-      if (lastMsg) document.getElementById('reply-to').textContent = lastMsg.from;
     } catch(err) {
-      // Fallback to single message
       threadMessages = [e];
     }
   } else {
     threadMessages = [e];
   }
 
+  updateReplyRecipients();
   renderThread();
 }
 
@@ -1369,9 +1414,9 @@ function markUnreadCurrent() {
 
 function forwardCurrent() {
   if (!selEmail) return;
-  openCompose();
-  document.getElementById('c-sub').value = 'Fwd: ' + selEmail.subject;
-  document.getElementById('c-body').innerHTML = `<br><br><div style="color:#666;border-left:2px solid #444;padding-left:8px;margin-top:8px">From: ${selEmail.from}<br>${selEmail.body || ''}</div>`;
+  document.getElementById('reply-mode').value = 'forward';
+  updateReplyRecipients();
+  document.getElementById('reply-recipients').focus();
 }
 
 function removeEmail(id) {
@@ -1408,34 +1453,168 @@ function buildRfc822(to, subject, body, cc, inReplyTo, references) {
   return btoa(unescape(encodeURIComponent(msg))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+function updateReplyRecipients() {
+  const mode = document.getElementById('reply-mode').value;
+  const lastMsg = threadMessages.length > 0 ? threadMessages[threadMessages.length - 1] : selEmail;
+  const recipientsInput = document.getElementById('reply-recipients');
+  const ccInput = document.getElementById('reply-cc');
+  const ccRow = document.getElementById('reply-cc-row');
+  const textarea = document.getElementById('rta');
+
+  if (mode === 'reply') {
+    recipientsInput.value = lastMsg.fromEmail;
+    ccRow.style.display = 'none';
+    ccInput.value = '';
+    textarea.placeholder = 'Write a reply...';
+  } else if (mode === 'reply-all') {
+    recipientsInput.value = lastMsg.fromEmail;
+    // Gather all other recipients (To + Cc minus yourself)
+    const userEmail = document.getElementById('sb-email').textContent;
+    const allTo = (lastMsg.to || '').split(',').map(s => s.trim()).filter(Boolean);
+    const allCc = (lastMsg.cc || '').split(',').map(s => s.trim()).filter(Boolean);
+    const others = [...allTo, ...allCc].filter(addr => !addr.toLowerCase().includes(userEmail.toLowerCase()) && !addr.toLowerCase().includes(lastMsg.fromEmail.toLowerCase()));
+    ccRow.style.display = 'flex';
+    ccInput.value = others.join(', ');
+    textarea.placeholder = 'Reply to all...';
+  } else if (mode === 'forward') {
+    recipientsInput.value = '';
+    ccRow.style.display = 'none';
+    ccInput.value = '';
+    textarea.placeholder = 'Add a message (optional)...';
+  }
+  checkGeminiRecipient();
+}
+
+function onReplyModeChange() {
+  updateReplyRecipients();
+}
+
+function isGeminiRecipient() {
+  const to = document.getElementById('reply-recipients').value.trim().toLowerCase();
+  return to === 'gemini' || to === 'gemini@' || to.startsWith('gemini@');
+}
+
+function checkGeminiRecipient() {
+  const badge = document.getElementById('gemini-badge');
+  badge.style.display = isGeminiRecipient() ? '' : 'none';
+}
+
 async function sendReply() {
   if (!selEmail) return;
   const body = document.getElementById('rta').value.trim();
-  if (!body) return;
-  if (demoMode) { toast('✓ Reply sent (demo)'); document.getElementById('rta').value = ''; return; }
-  try {
-    // Reply to the last message in the thread
-    const replyTo = threadMessages.length > 0 ? threadMessages[threadMessages.length - 1] : selEmail;
-    const raw = buildRfc822(
-      replyTo.fromEmail,
-      'Re: ' + selEmail.subject,
-      body.replace(/\n/g, '<br>'),
-      '',
-      replyTo.msgId,
-      replyTo.msgId
-    );
-    await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
-      method: 'POST',
-      body: JSON.stringify({ raw, threadId: selEmail.threadId })
-    });
-    toast('✓ Reply sent');
+  const to = document.getElementById('reply-recipients').value.trim();
+  const cc = document.getElementById('reply-cc').value.trim();
+  const mode = document.getElementById('reply-mode').value;
+
+  if (!body && mode !== 'forward') return;
+  if (!to) { toast('✕ Add a recipient'); return; }
+
+  // ── Gemini intercept ──
+  if (isGeminiRecipient()) {
     document.getElementById('rta').value = '';
-    // Reload thread to show the sent reply
+    const sendBtn = document.querySelector('.btn-send');
+    sendBtn.textContent = '✦ Thinking...';
+    sendBtn.disabled = true;
     try {
-      const threadData = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/threads/${selEmail.threadId}?format=full`);
-      threadMessages = (threadData.messages || []).map(mapMsg);
+      // Build context from the thread
+      const threadContext = threadMessages.map(m =>
+        `From: ${m.from} <${m.fromEmail}>\nDate: ${fmtFull(m.time)}\nSubject: ${m.subject}\n\n${m.bodyType === 'html' ? m.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : m.body}`
+      ).join('\n\n---\n\n');
+
+      const prompt = `You are Gemini, an AI assistant receiving a forwarded email conversation. The user has sent you this thread with a message. Respond helpfully and directly.
+
+EMAIL THREAD:
+${threadContext}
+
+USER'S MESSAGE TO YOU:
+${body}`;
+
+      const response = await callGemini([{ role: 'user', parts: [{ text: prompt }] }]);
+      const replyText = response.parts.map(p => p.text || '').join('');
+
+      // Save Gemini response as a real message in Gmail
+      const userEmail = document.getElementById('sb-email').textContent;
+      const lastMsg = threadMessages.length > 0 ? threadMessages[threadMessages.length - 1] : selEmail;
+      const geminiBody = replyText.replace(/\n/g, '<br>');
+      const raw = buildRfc822(
+        userEmail,
+        'Re: ' + selEmail.subject.replace(/^Re:\s*/i, ''),
+        `<div style="padding:8px 12px;margin-bottom:12px;background:var(--surface2);border-radius:6px;border-left:3px solid #a78bfa;font-size:13px;color:#666"><strong>✦ Gemini AI Response</strong></div>${geminiBody}`,
+        '',
+        lastMsg.msgId,
+        lastMsg.msgId
+      );
+
+      if (!demoMode) {
+        // Send as a real email to yourself so it persists in the thread
+        await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
+          method: 'POST',
+          body: JSON.stringify({ raw, threadId: selEmail.threadId })
+        });
+        // Reload thread from Gmail to show the saved message
+        const threadData = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/threads/${selEmail.threadId}?format=full`);
+        threadMessages = (threadData.messages || []).map(mapMsg);
+      } else {
+        // Demo mode — add locally
+        threadMessages.push({
+          id: 'gemini-' + Date.now(), threadId: selEmail.threadId, msgId: '',
+          from: 'Gemini AI', fromEmail: 'gemini@ai', to: userEmail, cc: '',
+          subject: selEmail.subject, preview: replyText.slice(0, 100),
+          body: geminiBody, bodyType: 'html', time: new Date().toISOString(),
+          unread: false, starred: false, hasAttachment: false, attachments: [],
+        });
+      }
       renderThread();
-    } catch(e) {}
+      toast('✦ Gemini replied');
+    } catch(e) {
+      toast('✕ ' + e.message);
+    }
+    sendBtn.textContent = 'Send ↑';
+    sendBtn.disabled = false;
+    return;
+  }
+
+  // ── Normal send ──
+  if (demoMode) { toast('✓ Sent (demo)'); document.getElementById('rta').value = ''; return; }
+  try {
+    const lastMsg = threadMessages.length > 0 ? threadMessages[threadMessages.length - 1] : selEmail;
+    let subject, inReplyTo, references, threadId;
+
+    if (mode === 'forward') {
+      subject = 'Fwd: ' + selEmail.subject;
+      inReplyTo = '';
+      references = '';
+      threadId = undefined;
+      // Build forwarded body
+      const fwdBody = `${body ? body.replace(/\n/g, '<br>') + '<br><br>' : ''}<div style="color:#666;border-left:2px solid #ccc;padding-left:12px;margin-top:8px"><strong>---------- Forwarded message ----------</strong><br>From: ${esc(lastMsg.from)} &lt;${esc(lastMsg.fromEmail)}&gt;<br>Date: ${fmtFull(lastMsg.time)}<br>Subject: ${esc(lastMsg.subject)}<br><br>${lastMsg.body || ''}</div>`;
+      const raw = buildRfc822(to, subject, fwdBody, cc);
+      await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST',
+        body: JSON.stringify({ raw })
+      });
+    } else {
+      subject = 'Re: ' + selEmail.subject.replace(/^Re:\s*/i, '');
+      inReplyTo = lastMsg.msgId;
+      references = lastMsg.msgId;
+      threadId = selEmail.threadId;
+      const raw = buildRfc822(to, subject, body.replace(/\n/g, '<br>'), cc, inReplyTo, references);
+      await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST',
+        body: JSON.stringify({ raw, threadId })
+      });
+    }
+
+    toast('✓ ' + (mode === 'forward' ? 'Forwarded' : 'Reply sent'));
+    document.getElementById('rta').value = '';
+
+    // Reload thread to show sent message
+    if (selEmail.threadId) {
+      try {
+        const threadData = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/threads/${selEmail.threadId}?format=full`);
+        threadMessages = (threadData.messages || []).map(mapMsg);
+        renderThread();
+      } catch(e) {}
+    }
   } catch(e) { toast('✕ ' + e.message); }
 }
 
@@ -1595,6 +1774,80 @@ async function aiHoverGo() {
     toast('✕ ' + e.message);
     input.disabled = false;
     input.value = instruction;
+  }
+}
+
+// ── DRAG & DROP ──────────────────────────────────────────
+let dragEmailId = null;
+
+function onEmailDragStart(e, id) {
+  dragEmailId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', id);
+  e.target.classList.add('dragging');
+  // Enable drop targets on all sidebar folder items
+  document.querySelectorAll('.sb-item[data-folder]').forEach(el => {
+    el.addEventListener('dragover', onFolderDragOver);
+    el.addEventListener('dragleave', onFolderDragLeave);
+    el.addEventListener('drop', onFolderDrop);
+  });
+}
+
+function onEmailDragEnd(e) {
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.sb-item[data-folder]').forEach(el => {
+    el.classList.remove('drag-over');
+    el.removeEventListener('dragover', onFolderDragOver);
+    el.removeEventListener('dragleave', onFolderDragLeave);
+    el.removeEventListener('drop', onFolderDrop);
+  });
+  dragEmailId = null;
+}
+
+function onFolderDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  this.classList.add('drag-over');
+}
+
+function onFolderDragLeave(e) {
+  this.classList.remove('drag-over');
+}
+
+async function onFolderDrop(e) {
+  e.preventDefault();
+  this.classList.remove('drag-over');
+  const emailId = dragEmailId;
+  const targetFolder = this.dataset.folder;
+  if (!emailId || !targetFolder) return;
+
+  if (demoMode) { toast(`✓ Moved to ${this.querySelector('span:nth-child(2)')?.textContent || targetFolder}`); return; }
+
+  try {
+    const labelName = this.querySelector('span:nth-child(2)')?.textContent || targetFolder;
+    // Build label modifications
+    const addLabels = [targetFolder];
+    const removeLabels = [];
+    // If moving to Trash, use trash endpoint
+    if (targetFolder === 'TRASH') {
+      await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${emailId}/trash`, { method: 'POST' });
+    } else if (targetFolder === 'SPAM') {
+      await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${emailId}/modify`, {
+        method: 'POST', body: JSON.stringify({ addLabelIds: ['SPAM'], removeLabelIds: ['INBOX'] })
+      });
+    } else if (targetFolder === 'ARCHIVE') {
+      await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${emailId}/modify`, {
+        method: 'POST', body: JSON.stringify({ removeLabelIds: ['INBOX'] })
+      });
+    } else {
+      // For INBOX, SENT, DRAFT, or custom labels — add the label
+      await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${emailId}/modify`, {
+        method: 'POST', body: JSON.stringify({ addLabelIds: addLabels })
+      });
+    }
+    toast(`✓ Moved to ${labelName}`);
+  } catch(err) {
+    toast('✕ ' + err.message);
   }
 }
 
@@ -1802,6 +2055,61 @@ const GEMINI_TOOLS = [{
         properties: {},
       }
     },
+    {
+      name: 'create_label',
+      description: 'Create a new Gmail label (folder). Use this when the user asks to create a folder, label, or category for organizing email.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          name: { type: 'STRING', description: 'The name of the label to create (e.g. "Receipts", "Job Applications", "Notes to Self")' },
+        },
+        required: ['name']
+      }
+    },
+    {
+      name: 'modify_email_labels',
+      description: 'Add or remove labels (folders) on one or more emails. Use this to move emails to folders, remove them from folders, archive, etc. You can process multiple emails at once by passing an array of message IDs.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          messageIds: { type: 'ARRAY', items: { type: 'STRING' }, description: 'Array of Gmail message IDs to modify' },
+          addLabelIds: { type: 'ARRAY', items: { type: 'STRING' }, description: 'Label IDs to add (e.g. ["Label_123", "STARRED"])' },
+          removeLabelIds: { type: 'ARRAY', items: { type: 'STRING' }, description: 'Label IDs to remove (e.g. ["INBOX", "UNREAD"])' },
+        },
+        required: ['messageIds']
+      }
+    },
+    {
+      name: 'reply_to_email',
+      description: 'Send a reply to a specific email. Use this when the user asks you to reply to an email with specific content.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          messageId: { type: 'STRING', description: 'The Gmail message ID to reply to' },
+          body: { type: 'STRING', description: 'The reply body text (plain text, newlines will be converted to <br>)' },
+        },
+        required: ['messageId', 'body']
+      }
+    },
+    {
+      name: 'delete_label',
+      description: 'Delete a Gmail label (folder). This removes the label but does not delete the emails that had it.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          labelId: { type: 'STRING', description: 'The label ID to delete' },
+        },
+        required: ['labelId']
+      }
+    },
+    {
+      name: 'list_labels',
+      description: 'List all Gmail labels (folders) available in the user\'s account, including system labels and user-created labels. Returns label IDs and names. Use this to find the correct label ID before moving emails.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {},
+      }
+    },
   ]
 }];
 
@@ -1930,6 +2238,79 @@ async function executeToolCall(fnName, fnArgs) {
       searchQuery: searchQ,
       count: visible.length,
       emails: visible.map(e => ({ id: e.id, from: e.from, fromEmail: e.fromEmail, subject: e.subject, date: e.time, snippet: e.preview, unread: e.unread, starred: e.starred, hasAttachment: e.hasAttachment, attachments: (e.attachments || []).map(a => ({ filename: a.filename, mimeType: a.mimeType, size: a.size, attachmentId: a.attachmentId })) }))
+    };
+  }
+
+  if (fnName === 'create_label') {
+    if (demoMode) return { status: 'demo_mode', message: 'Cannot create labels in demo mode' };
+    const res = await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/labels', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: fnArgs.name,
+        labelListVisibility: 'labelShow',
+        messageListVisibility: 'show'
+      })
+    });
+    // Refresh sidebar labels
+    loadUserLabels();
+    return { status: 'created', labelId: res.id, name: res.name };
+  }
+
+  if (fnName === 'modify_email_labels') {
+    if (demoMode) return { status: 'demo_mode', message: 'Cannot modify labels in demo mode' };
+    const ids = fnArgs.messageIds || [];
+    const addLabels = fnArgs.addLabelIds || [];
+    const removeLabels = fnArgs.removeLabelIds || [];
+    const results = [];
+    for (const msgId of ids) {
+      try {
+        await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${msgId}/modify`, {
+          method: 'POST',
+          body: JSON.stringify({ addLabelIds: addLabels, removeLabelIds: removeLabels })
+        });
+        results.push({ id: msgId, status: 'ok' });
+      } catch(e) {
+        results.push({ id: msgId, status: 'error', error: e.message });
+      }
+    }
+    return { status: 'done', modified: results.length, results };
+  }
+
+  if (fnName === 'reply_to_email') {
+    if (demoMode) return { status: 'demo_mode', message: 'Cannot send replies in demo mode' };
+    // Fetch the original message to get thread info
+    const orig = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${fnArgs.messageId}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Message-ID`);
+    const fromHeader = (orig.payload?.headers || []).find(h => h.name === 'From')?.value || '';
+    const subjectHeader = (orig.payload?.headers || []).find(h => h.name === 'Subject')?.value || '';
+    const msgIdHeader = (orig.payload?.headers || []).find(h => h.name === 'Message-ID')?.value || '';
+    const toEmail = parseFrom(fromHeader).email;
+    const raw = buildRfc822(
+      toEmail,
+      'Re: ' + subjectHeader.replace(/^Re:\s*/i, ''),
+      fnArgs.body.replace(/\n/g, '<br>'),
+      '',
+      msgIdHeader,
+      msgIdHeader
+    );
+    await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      body: JSON.stringify({ raw, threadId: orig.threadId })
+    });
+    return { status: 'sent', to: toEmail, subject: subjectHeader };
+  }
+
+  if (fnName === 'delete_label') {
+    if (demoMode) return { status: 'demo_mode', message: 'Cannot delete labels in demo mode' };
+    await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/labels/${fnArgs.labelId}`, { method: 'DELETE' });
+    loadUserLabels();
+    return { status: 'deleted', labelId: fnArgs.labelId };
+  }
+
+  if (fnName === 'list_labels') {
+    if (demoMode) return { labels: [{ id: 'INBOX', name: 'Inbox', type: 'system' }] };
+    const data = await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/labels');
+    return {
+      labels: (data.labels || []).map(l => ({ id: l.id, name: l.name, type: l.type }))
     };
   }
 
@@ -2139,7 +2520,10 @@ IMPORTANT RULES:
 2. When the user says "today", use the exact date (${new Date().toISOString().split('T')[0]}). "Today" means ONLY today, not yesterday. Use after: and before: date operators precisely. For Gmail search: after:YYYY/MM/DD means messages from that date onward, before:YYYY/MM/DD means messages before that date.
 3. When showing results, format them clearly.
 4. Attachment cards with download buttons are rendered automatically from search_emails and get_email results. Do NOT call get_attachment unless the user explicitly asks to download a specific file.
-5. Always use tools to access email data rather than guessing.` }]
+5. Always use tools to access email data rather than guessing.
+6. You can organize emails: create folders (labels), move emails between folders, send replies, and delete folders. When moving emails, ALWAYS call list_labels first to get the correct label ID — never guess label IDs.
+7. When the user asks you to reply to emails, use reply_to_email with the message ID and the exact text they want sent.
+8. For batch operations (e.g. "move all emails from X to folder Y"), search first, then use modify_email_labels with all the message IDs.` }]
   };
 
   // Build conversation for Gemini (insert system context at start)
