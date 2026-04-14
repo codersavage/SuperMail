@@ -633,11 +633,12 @@ html.light .theme-toggle::after { transform: translateX(16px); }
         <input type="text" placeholder="Search..." id="search-input" oninput="filterList(this.value)">
       </div>
     </div>
-    <div class="lp-cats">
+    <div class="lp-cats" id="lp-cats">
       <button class="lp-cat on" onclick="setCat('all',this)">All</button>
-      <button class="lp-cat" onclick="setCat('unread',this)">Unread</button>
-      <button class="lp-cat" onclick="setCat('starred',this)">Starred</button>
-      <button class="lp-cat" onclick="setCat('attach',this)">Attachments</button>
+      <button class="lp-cat" onclick="setCat('CATEGORY_PERSONAL',this)">Primary</button>
+      <button class="lp-cat" onclick="setCat('CATEGORY_SOCIAL',this)">Social</button>
+      <button class="lp-cat" onclick="setCat('CATEGORY_UPDATES',this)">Updates</button>
+      <button class="lp-cat" onclick="setCat('CATEGORY_PROMOTIONS',this)">Promotions</button>
     </div>
     <div class="lp-items" id="lp-items">
       <div class="loading-state"><div class="spin"></div><div class="spin-label">Loading...</div></div>
@@ -921,6 +922,16 @@ const FOLDER_NAMES = {
 
 let nextPageToken = null;
 
+async function fetchInChunks(items, fn, chunkSize = 5) {
+  const results = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    const chunkResults = await Promise.all(chunk.map(fn));
+    results.push(...chunkResults);
+  }
+  return results;
+}
+
 async function loadEmails(append = false) {
   if (!append) showListLoading();
   hideErr();
@@ -930,6 +941,9 @@ async function loadEmails(append = false) {
       url = `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=50&q=-label:inbox -label:sent -label:draft -label:trash -label:spam`;
     } else {
       url = `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=50&labelIds=${folder}`;
+      if (cat && cat !== 'all' && cat.startsWith('CATEGORY_')) {
+        url += `&labelIds=${cat}`;
+      }
     }
     if (append && nextPageToken) url += `&pageToken=${nextPageToken}`;
 
@@ -937,10 +951,8 @@ async function loadEmails(append = false) {
     nextPageToken = data.nextPageToken || null;
     const messageIds = data.messages || [];
 
-    const details = await Promise.all(
-      messageIds.map(m =>
-        gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`)
-      )
+    const details = await fetchInChunks(messageIds, m =>
+      gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`)
     );
     const newEmails = details.map(mapMsg);
     if (append) {
@@ -1131,9 +1143,6 @@ function loadDemoEmails() {
 // ── RENDER LIST ───────────────────────────────────────────
 function getFiltered() {
   let list = emails;
-  if (cat === 'unread') list = list.filter(e => e.unread);
-  if (cat === 'starred') list = list.filter(e => e.starred);
-  if (cat === 'attach') list = list.filter(e => e.hasAttachment);
   if (searchQ) {
     const q = searchQ.toLowerCase();
     list = list.filter(e =>
@@ -1507,9 +1516,14 @@ async function aiHoverGo() {
 // ── FOLDER / FILTER ───────────────────────────────────────
 function switchFolder(f, el) {
   folder = f;
+  cat = 'all';
   nextPageToken = null;
   document.querySelectorAll('.sb-item[data-folder]').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
+  document.querySelectorAll('.lp-cat').forEach(p => p.classList.remove('on'));
+  document.querySelector('.lp-cat').classList.add('on');
+  // Show category tabs only for INBOX
+  document.getElementById('lp-cats').style.display = (f === 'INBOX') ? '' : 'none';
   document.getElementById('lp-title').textContent = FOLDER_NAMES[f] || f;
   selEmail = null;
   document.getElementById('rd-content').style.display = 'none';
@@ -1519,9 +1533,11 @@ function switchFolder(f, el) {
 
 function setCat(c, el) {
   cat = c;
+  nextPageToken = null;
   document.querySelectorAll('.lp-cat').forEach(p => p.classList.remove('on'));
   el.classList.add('on');
-  renderList();
+  if (demoMode) { renderList(); return; }
+  loadEmails();
 }
 
 function filterList(q) { searchQ = q; renderList(); }
@@ -1651,17 +1667,21 @@ const GEMINI_TOOLS = [{
   functionDeclarations: [
     {
       name: 'search_emails',
-      description: 'Search emails in the user\'s mailbox. Returns a list of matching emails with id, from, subject, date, snippet, and attachment info. Use the structured date params (after/before) for precise date filtering rather than putting dates in the query string — they are more reliable. The query param uses Gmail search syntax for everything else (from:, to:, subject:, has:attachment, filename:pdf, is:unread, is:starred, etc.).',
+      description: 'Search emails in the user\'s mailbox using structured filters. Returns matching emails with id, from, subject, date, snippet, and attachment info. Use the specific fields below to filter — do NOT write raw Gmail search syntax. All fields are optional; combine as needed.',
       parameters: {
         type: 'OBJECT',
         properties: {
-          query: { type: 'STRING', description: 'Gmail search query WITHOUT date operators (e.g. "from:jph has:attachment", "filename:pdf")' },
+          from: { type: 'STRING', description: 'Sender name or email address to filter by (partial match OK, e.g. "john" or "company.com")' },
+          to: { type: 'STRING', description: 'Recipient name or email address to filter by' },
+          subject: { type: 'STRING', description: 'Words to search for in the subject line' },
+          body: { type: 'STRING', description: 'Words or phrases to search for in the email body' },
+          has_attachment: { type: 'BOOLEAN', description: 'Set to true to only return emails with attachments. Omit or false for no filter.' },
+          filename: { type: 'STRING', description: 'Filter by attachment filename (e.g. "report.pdf", "*.csv")' },
           after: { type: 'STRING', description: 'Only emails on or after this date, YYYY-MM-DD format. For "today" use today\'s exact date.' },
           before: { type: 'STRING', description: 'Only emails strictly before this date, YYYY-MM-DD format. To search a single day, set after=that day and before=the next day.' },
+          label: { type: 'STRING', description: 'Gmail label to search within (e.g. INBOX, SENT, TRASH). Defaults to all mail.' },
           maxResults: { type: 'INTEGER', description: 'Max results to return (default 10, max 50)' },
-          label: { type: 'STRING', description: 'Gmail label to search within (e.g. INBOX, SENT, TRASH). Defaults to current folder.' },
         },
-        required: ['query']
       }
     },
     {
@@ -1731,31 +1751,37 @@ async function callGemini(contents, tools) {
 // ── Tool execution ─────────────────────────────────────────
 async function executeToolCall(fnName, fnArgs) {
   if (demoMode && fnName === 'search_emails') {
-    // In demo mode, search locally
-    const q = (fnArgs.query || '').toLowerCase();
-    const results = emails.filter(e =>
-      e.from.toLowerCase().includes(q) ||
-      e.fromEmail.toLowerCase().includes(q) ||
-      e.subject.toLowerCase().includes(q) ||
-      (e.preview || '').toLowerCase().includes(q)
-    );
+    // In demo mode, search locally using structured fields
+    let results = emails;
+    if (fnArgs.from) { const q = fnArgs.from.toLowerCase(); results = results.filter(e => e.from.toLowerCase().includes(q) || e.fromEmail.toLowerCase().includes(q)); }
+    if (fnArgs.to) { const q = fnArgs.to.toLowerCase(); results = results.filter(e => (e.to || '').toLowerCase().includes(q)); }
+    if (fnArgs.subject) { const q = fnArgs.subject.toLowerCase(); results = results.filter(e => e.subject.toLowerCase().includes(q)); }
+    if (fnArgs.body) { const q = fnArgs.body.toLowerCase(); results = results.filter(e => (e.preview || '').toLowerCase().includes(q) || (e.body || '').toLowerCase().includes(q)); }
+    if (fnArgs.has_attachment) results = results.filter(e => e.hasAttachment);
     return { results: results.map(e => ({ id: e.id, from: e.from, fromEmail: e.fromEmail, subject: e.subject, date: e.time, snippet: e.preview, hasAttachment: e.hasAttachment, attachments: (e.attachments || []).map(a => ({ filename: a.filename, mimeType: a.mimeType, size: a.size })) })) };
   }
 
   if (fnName === 'search_emails') {
     const maxResults = Math.min(fnArgs.maxResults || 10, 50);
-    let query = fnArgs.query || '';
-    // Inject structured date params into Gmail query (more reliable than LLM formatting)
-    if (fnArgs.after) query += ` after:${fnArgs.after.replace(/-/g, '/')}`;
-    if (fnArgs.before) query += ` before:${fnArgs.before.replace(/-/g, '/')}`;
-    if (fnArgs.label) query += ` label:${fnArgs.label.toLowerCase()}`;
+    // Build Gmail query from structured fields
+    let queryParts = [];
+    if (fnArgs.from) queryParts.push(`from:${fnArgs.from}`);
+    if (fnArgs.to) queryParts.push(`to:${fnArgs.to}`);
+    if (fnArgs.subject) queryParts.push(`subject:(${fnArgs.subject})`);
+    if (fnArgs.body) queryParts.push(fnArgs.body);
+    if (fnArgs.has_attachment) queryParts.push('has:attachment');
+    if (fnArgs.filename) queryParts.push(`filename:${fnArgs.filename}`);
+    if (fnArgs.after) queryParts.push(`after:${fnArgs.after.replace(/-/g, '/')}`);
+    if (fnArgs.before) queryParts.push(`before:${fnArgs.before.replace(/-/g, '/')}`);
+    if (fnArgs.label) queryParts.push(`label:${fnArgs.label.toLowerCase()}`);
+    let query = queryParts.join(' ');
     const url = `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=${encodeURIComponent(query)}`;
     const listData = await gmailFetch(url);
     const msgIds = listData.messages || [];
     if (msgIds.length === 0) return { results: [], query_used: query.trim() };
 
-    const details = await Promise.all(
-      msgIds.map(m => gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`))
+    const details = await fetchInChunks(msgIds, m =>
+      gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`)
     );
 
     let results = details.map(m => {
