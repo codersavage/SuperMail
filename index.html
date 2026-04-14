@@ -913,6 +913,7 @@ function resetSignInBtn() {
 }
 
 function signOut() {
+  stopAutoRefresh();
   sessionStorage.clear();
   if (accessToken) {
     google.accounts.oauth2.revoke(accessToken, () => {});
@@ -945,6 +946,7 @@ async function enterApp() {
 
   loadEmails();
   loadUserLabels();
+  startAutoRefresh();
 }
 
 async function loadUserLabels() {
@@ -1156,6 +1158,45 @@ async function refresh() {
   if (demoMode) { toast('↻ Refreshed (demo)'); return; }
   await loadEmails();
   toast('↻ Refreshed');
+}
+
+// ── AUTO REFRESH ─────────────────────────────────────────
+let autoRefreshInterval = null;
+
+function startAutoRefresh() {
+  stopAutoRefresh();
+  autoRefreshInterval = setInterval(autoRefreshCheck, 30000); // 30 seconds
+  // Also refresh when the tab becomes visible again (user switches back)
+  document.addEventListener('visibilitychange', onVisibilityChange);
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
+  document.removeEventListener('visibilitychange', onVisibilityChange);
+}
+
+function onVisibilityChange() {
+  if (!document.hidden && !demoMode) {
+    autoRefreshCheck();
+  }
+}
+
+async function autoRefreshCheck() {
+  if (demoMode || !accessToken || document.hidden) return;
+  try {
+    // Lightweight check — just fetch the first message ID and compare
+    let url = `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=1&labelIds=${folder}`;
+    if (cat && cat !== 'all' && cat.startsWith('CATEGORY_')) url += `&labelIds=${cat}`;
+    const data = await gmailFetch(url);
+    const latestId = data.messages?.[0]?.id;
+    // If the newest message ID differs from what we have, reload
+    if (latestId && (!emails.length || emails[0].id !== latestId)) {
+      await loadEmails();
+      updateBadge();
+    }
+  } catch(e) {
+    // Silent fail — don't disrupt the user
+  }
 }
 
 // ── ATTACHMENT DOWNLOAD ───────────────────────────────────
@@ -1550,13 +1591,20 @@ ${body}`;
 
       if (!demoMode) {
         // Send as a real email to yourself so it persists in the thread
-        await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
+        const sendResult = await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
           method: 'POST',
           body: JSON.stringify({ raw, threadId: selEmail.threadId })
         });
-        // Reload thread from Gmail to show the saved message
+        // Ensure the sent message gets the current category label so it shows in the list
+        if (sendResult.id && cat && cat !== 'all' && cat.startsWith('CATEGORY_')) {
+          gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${sendResult.id}/modify`, {
+            method: 'POST', body: JSON.stringify({ addLabelIds: [cat] })
+          }).catch(() => {});
+        }
+        // Reload thread and email list
         const threadData = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/threads/${selEmail.threadId}?format=full`);
         threadMessages = (threadData.messages || []).map(mapMsg);
+        loadEmails();
       } else {
         // Demo mode — add locally
         threadMessages.push({
@@ -2021,7 +2069,7 @@ const GEMINI_TOOLS = [{
           after: { type: 'STRING', description: 'Only emails on or after this date, YYYY-MM-DD format. For "today" use today\'s exact date.' },
           before: { type: 'STRING', description: 'Only emails strictly before this date, YYYY-MM-DD format. To search a single day, set after=that day and before=the next day.' },
           label: { type: 'STRING', description: 'Gmail label to search within (e.g. INBOX, SENT, TRASH). Defaults to all mail.' },
-          maxResults: { type: 'INTEGER', description: 'Max results to return (default 10, max 50)' },
+          maxResults: { type: 'INTEGER', description: 'Max results to return (default 50, max 200). For batch operations like moving all emails, use a high number to capture everything.' },
         },
       }
     },
@@ -2158,7 +2206,7 @@ async function executeToolCall(fnName, fnArgs) {
   }
 
   if (fnName === 'search_emails') {
-    const maxResults = Math.min(fnArgs.maxResults || 10, 50);
+    const maxResults = Math.min(fnArgs.maxResults || 50, 200);
     // Build Gmail query from structured fields
     let queryParts = [];
     if (fnArgs.from) queryParts.push(`from:${fnArgs.from}`);
@@ -2171,9 +2219,18 @@ async function executeToolCall(fnName, fnArgs) {
     if (fnArgs.before) queryParts.push(`before:${fnArgs.before.replace(/-/g, '/')}`);
     if (fnArgs.label) queryParts.push(`label:${fnArgs.label.toLowerCase()}`);
     let query = queryParts.join(' ');
-    const url = `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=${encodeURIComponent(query)}`;
-    const listData = await gmailFetch(url);
-    const msgIds = listData.messages || [];
+    // Paginate to collect all matching message IDs up to maxResults
+    let msgIds = [];
+    let pageToken = null;
+    while (msgIds.length < maxResults) {
+      let url = `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=${Math.min(maxResults - msgIds.length, 100)}&q=${encodeURIComponent(query)}`;
+      if (pageToken) url += `&pageToken=${pageToken}`;
+      const listData = await gmailFetch(url);
+      const batch = listData.messages || [];
+      msgIds = msgIds.concat(batch);
+      pageToken = listData.nextPageToken;
+      if (!pageToken || batch.length === 0) break;
+    }
     if (msgIds.length === 0) return { results: [], query_used: query.trim() };
 
     const details = await fetchInChunks(msgIds, m =>
