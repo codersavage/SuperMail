@@ -154,6 +154,7 @@ html.light .theme-toggle::after { transform: translateX(16px); }
 }
 .sb-top { padding: 1.25rem 1.1rem 1rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
 .sb-logo { font-family: var(--serif); font-size: 1.35rem; color: var(--accent); letter-spacing: -0.02em; }
+.sb-scroll { flex: 1; overflow-y: auto; }
 .sb-section { padding: 0.85rem 0 0.25rem; }
 .sb-label { font-family: var(--mono); font-size: 0.58rem; color: var(--text3); letter-spacing: 0.13em; text-transform: uppercase; padding: 0 1.1rem 0.4rem; }
 .sb-item {
@@ -618,49 +619,51 @@ html.light .theme-toggle::after { transform: translateX(16px); }
       <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode"></div>
     </div>
 
-    <div class="sb-section">
-      <div class="sb-label">Folders</div>
-      <div class="sb-item active" onclick="switchFolder('INBOX', this)" data-folder="INBOX">
-        <span class="sb-ic">✉</span><span>Inbox</span>
-        <span class="sb-badge live" id="inbox-badge">0</span>
+    <div class="sb-scroll">
+      <div class="sb-section">
+        <div class="sb-label">Folders</div>
+        <div class="sb-item active" onclick="switchFolder('INBOX', this)" data-folder="INBOX">
+          <span class="sb-ic">✉</span><span>Inbox</span>
+          <span class="sb-badge live" id="inbox-badge">0</span>
+        </div>
+        <div class="sb-item" onclick="switchFolder('SENT', this)" data-folder="SENT">
+          <span class="sb-ic">↑</span><span>Sent</span>
+        </div>
+        <div class="sb-item" onclick="switchFolder('DRAFT', this)" data-folder="DRAFT">
+          <span class="sb-ic">✏</span><span>Drafts</span>
+        </div>
+        <div class="sb-item" onclick="switchFolder('ARCHIVE', this)" data-folder="ARCHIVE">
+          <span class="sb-ic">▤</span><span>Archive</span>
+        </div>
+        <div class="sb-item" onclick="switchFolder('TRASH', this)" data-folder="TRASH">
+          <span class="sb-ic">⊗</span><span>Trash</span>
+        </div>
+        <div class="sb-item" onclick="switchFolder('SPAM', this)" data-folder="SPAM">
+          <span class="sb-ic">⚑</span><span>Spam</span>
+        </div>
       </div>
-      <div class="sb-item" onclick="switchFolder('SENT', this)" data-folder="SENT">
-        <span class="sb-ic">↑</span><span>Sent</span>
-      </div>
-      <div class="sb-item" onclick="switchFolder('DRAFT', this)" data-folder="DRAFT">
-        <span class="sb-ic">✏</span><span>Drafts</span>
-      </div>
-      <div class="sb-item" onclick="switchFolder('ARCHIVE', this)" data-folder="ARCHIVE">
-        <span class="sb-ic">▤</span><span>Archive</span>
-      </div>
-      <div class="sb-item" onclick="switchFolder('TRASH', this)" data-folder="TRASH">
-        <span class="sb-ic">⊗</span><span>Trash</span>
-      </div>
-      <div class="sb-item" onclick="switchFolder('SPAM', this)" data-folder="SPAM">
-        <span class="sb-ic">⚑</span><span>Spam</span>
-      </div>
-    </div>
 
-    <div id="sb-labels"></div>
+      <div id="sb-labels"></div>
 
-    <div class="sb-div"></div>
+      <div class="sb-div"></div>
 
-    <div class="sb-section">
-      <div class="sb-label">Actions</div>
-      <div class="sb-item" onclick="openCompose()">
-        <span class="sb-ic">✚</span><span>Compose</span>
-        <span class="sb-shortcut">C</span>
-      </div>
-      <div class="sb-item" onclick="openCmd()">
-        <span class="sb-ic">⌘</span><span>Command</span>
-        <span class="sb-shortcut">⌘K</span>
-      </div>
-      <div class="sb-item" onclick="refresh()">
-        <span class="sb-ic">↻</span><span>Refresh</span>
-        <span class="sb-shortcut">G I</span>
-      </div>
-      <div class="sb-item" onclick="toggleAI()">
-        <span class="sb-ic">✦</span><span>AI Chat</span>
+      <div class="sb-section">
+        <div class="sb-label">Actions</div>
+        <div class="sb-item" onclick="openCompose()">
+          <span class="sb-ic">✚</span><span>Compose</span>
+          <span class="sb-shortcut">C</span>
+        </div>
+        <div class="sb-item" onclick="openCmd()">
+          <span class="sb-ic">⌘</span><span>Command</span>
+          <span class="sb-shortcut">⌘K</span>
+        </div>
+        <div class="sb-item" onclick="refresh()">
+          <span class="sb-ic">↻</span><span>Refresh</span>
+          <span class="sb-shortcut">G I</span>
+        </div>
+        <div class="sb-item" onclick="toggleAI()">
+          <span class="sb-ic">✦</span><span>AI Chat</span>
+        </div>
       </div>
     </div>
 
