@@ -285,6 +285,32 @@ html.light .theme-toggle::after { transform: translateX(16px); }
 .rd-body a { color: var(--accent2); }
 .rd-body blockquote { border-left: 2px solid var(--border2); padding-left: 1rem; color: var(--text3); margin: 0.75em 0; }
 
+/* ─── THREAD MESSAGES ────────────────────────────────────── */
+.thread-msg { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.75rem; overflow: hidden; }
+.thread-msg:last-child { margin-bottom: 0; }
+.thread-msg-header {
+  display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem;
+  cursor: pointer; background: var(--surface); transition: background 0.12s;
+}
+.thread-msg-header:hover { background: var(--surface2); }
+.thread-msg.expanded .thread-msg-header { border-bottom: 1px solid var(--border); }
+.thread-msg-av {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  background: var(--surface3); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; color: var(--text2); font-weight: 500;
+}
+.thread-msg-sender { flex: 1; min-width: 0; }
+.thread-msg-name { font-size: 0.8rem; font-weight: 500; }
+.thread-msg-snippet { font-size: 0.7rem; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread-msg.expanded .thread-msg-snippet { display: none; }
+.thread-msg-time { font-family: var(--mono); font-size: 0.65rem; color: var(--text3); flex-shrink: 0; }
+.thread-msg-body { padding: 1rem 1.25rem; display: none; }
+.thread-msg.expanded .thread-msg-body { display: block; }
+.thread-msg-body .rd-body { margin: 0; }
+.thread-msg-atts { padding: 0 1.25rem 1rem; display: none; }
+.thread-msg.expanded .thread-msg-atts { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
 /* ─── ATTACHMENTS ─────────────────────────────────────────── */
 .att-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 .att-chip {
@@ -586,6 +612,8 @@ html.light .theme-toggle::after { transform: translateX(16px); }
       </div>
     </div>
 
+    <div id="sb-labels"></div>
+
     <div class="sb-div"></div>
 
     <div class="sb-section">
@@ -622,7 +650,6 @@ html.light .theme-toggle::after { transform: translateX(16px); }
     <div class="lp-header">
       <div class="lp-title" id="lp-title">Inbox</div>
       <div class="lp-acts">
-        <button class="ib" title="Mark all read" onclick="markAllRead()">👁</button>
         <button class="ib" title="Refresh" onclick="refresh()">↻</button>
       </div>
     </div>
@@ -634,8 +661,7 @@ html.light .theme-toggle::after { transform: translateX(16px); }
       </div>
     </div>
     <div class="lp-cats" id="lp-cats">
-      <button class="lp-cat on" onclick="setCat('all',this)">All</button>
-      <button class="lp-cat" onclick="setCat('CATEGORY_PERSONAL',this)">Primary</button>
+      <button class="lp-cat on" onclick="setCat('CATEGORY_PERSONAL',this)">Primary</button>
       <button class="lp-cat" onclick="setCat('CATEGORY_SOCIAL',this)">Social</button>
       <button class="lp-cat" onclick="setCat('CATEGORY_UPDATES',this)">Updates</button>
       <button class="lp-cat" onclick="setCat('CATEGORY_PROMOTIONS',this)">Promotions</button>
@@ -676,17 +702,8 @@ html.light .theme-toggle::after { transform: translateX(16px); }
       <div class="rd-scroll">
         <div class="rd-header">
           <div class="rd-subject" id="rd-subject">—</div>
-          <div class="rd-meta">
-            <div class="rd-avatar" id="rd-av">?</div>
-            <div class="rd-sender">
-              <div class="rd-sender-name" id="rd-name">—</div>
-              <div class="rd-sender-email" id="rd-email">—</div>
-            </div>
-            <div class="rd-datetime" id="rd-time">—</div>
-          </div>
         </div>
-        <div class="rd-body" id="rd-body"></div>
-        <div class="att-bar" id="rd-attachments" style="display:none"></div>
+        <div id="rd-thread"></div>
       </div>
       <div class="reply-wrap">
         <div class="reply-top">
@@ -800,7 +817,7 @@ let demoMode = false;
 
 // State
 let emails = [], selEmail = null, selIdx = -1;
-let folder = 'INBOX', cat = 'all', searchQ = '';
+let folder = 'INBOX', cat = 'CATEGORY_PERSONAL', searchQ = '';
 let toastT, kbdT;
 
 // ── INIT ─────────────────────────────────────────────────
@@ -882,6 +899,26 @@ async function enterApp() {
   }
 
   loadEmails();
+  loadUserLabels();
+}
+
+async function loadUserLabels() {
+  try {
+    const data = await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/labels');
+    const labels = (data.labels || [])
+      .filter(l => l.type === 'user')
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const container = document.getElementById('sb-labels');
+    if (!labels.length) { container.innerHTML = ''; return; }
+    container.innerHTML = `<div class="sb-div"></div><div class="sb-section">
+      <div class="sb-label">Labels</div>
+      ${labels.map(l => `<div class="sb-item" onclick="switchFolder('${l.id}', this)" data-folder="${l.id}">
+        <span class="sb-ic">⬡</span><span>${esc(l.name)}</span>
+      </div>`).join('')}
+    </div>`;
+  } catch(e) {
+    console.error('Labels load error:', e);
+  }
 }
 
 function setUser(name, email) {
@@ -1188,7 +1225,9 @@ function showListLoading() {
 }
 
 // ── OPEN EMAIL ────────────────────────────────────────────
-function openEmail(id) {
+let threadMessages = []; // all messages in the current thread
+
+async function openEmail(id) {
   const e = emails.find(x => x.id === id);
   if (!e) return;
   selEmail = e;
@@ -1208,43 +1247,81 @@ function openEmail(id) {
   setTimeout(() => content.classList.remove('fadein'), 300);
 
   document.getElementById('rd-subject').textContent = e.subject;
-  document.getElementById('rd-name').textContent = e.from;
-  document.getElementById('rd-email').textContent = e.fromEmail;
-  document.getElementById('rd-time').textContent = fmtFull(e.time);
-  document.getElementById('reply-to').textContent = e.from;
-  document.getElementById('rd-av').textContent = e.from.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
 
   const starBtn = document.getElementById('star-btn');
   starBtn.classList.toggle('starred', !!e.starred);
   starBtn.textContent = e.starred ? '★ Starred' : '★ Star';
 
   document.getElementById('rta').value = '';
-
-  const body = document.getElementById('rd-body');
-  if (e.bodyType === 'html' || (e.body || '').includes('<')) {
-    body.innerHTML = sanitize(e.body);
-  } else {
-    body.innerHTML = esc(e.body || '').replace(/\n/g, '<br>');
-  }
-
-  // Render attachments
-  const attBar = document.getElementById('rd-attachments');
-  if (e.attachments && e.attachments.length > 0) {
-    attBar.style.display = 'flex';
-    attBar.innerHTML = e.attachments.map(a =>
-      `<div class="att-chip" onclick="downloadAttachment('${e.id}', '${a.attachmentId}', '${esc(a.filename)}', '${a.mimeType}')">
-        <span class="att-icon">${attIcon(a.mimeType)}</span>
-        <span class="att-name">${esc(a.filename)}</span>
-        <span class="att-size">${fmtSize(a.size)}</span>
-        <span class="att-dl">↓</span>
-      </div>`
-    ).join('');
-  } else {
-    attBar.style.display = 'none';
-    attBar.innerHTML = '';
-  }
+  document.getElementById('reply-to').textContent = e.from;
 
   document.querySelectorAll('.em').forEach(el => el.classList.toggle('sel', el.dataset.id === id));
+
+  // Fetch full thread
+  if (!demoMode && e.threadId) {
+    document.getElementById('rd-thread').innerHTML = `<div class="loading-state"><div class="spin"></div><div class="spin-label">Loading conversation...</div></div>`;
+    try {
+      const threadData = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/threads/${e.threadId}?format=full`);
+      threadMessages = (threadData.messages || []).map(mapMsg);
+      // Update reply-to with the last message sender
+      const lastMsg = threadMessages[threadMessages.length - 1];
+      if (lastMsg) document.getElementById('reply-to').textContent = lastMsg.from;
+    } catch(err) {
+      // Fallback to single message
+      threadMessages = [e];
+    }
+  } else {
+    threadMessages = [e];
+  }
+
+  renderThread();
+}
+
+function renderThread() {
+  const container = document.getElementById('rd-thread');
+  if (!threadMessages.length) { container.innerHTML = ''; return; }
+
+  container.innerHTML = threadMessages.map((m, i) => {
+    const isLast = i === threadMessages.length - 1;
+    const initials = m.from.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+    let bodyHtml;
+    if (m.bodyType === 'html' || (m.body || '').includes('<')) {
+      bodyHtml = sanitize(m.body);
+    } else {
+      bodyHtml = esc(m.body || '').replace(/\n/g, '<br>');
+    }
+    const attsHtml = (m.attachments && m.attachments.length > 0) ?
+      `<div class="thread-msg-atts">${m.attachments.map(a =>
+        `<div class="att-chip" onclick="downloadAttachment('${m.id}', '${a.attachmentId}', '${esc(a.filename)}', '${a.mimeType}')">
+          <span class="att-icon">${attIcon(a.mimeType)}</span>
+          <span class="att-name">${esc(a.filename)}</span>
+          <span class="att-size">${fmtSize(a.size)}</span>
+          <span class="att-dl">↓</span>
+        </div>`
+      ).join('')}</div>` : '';
+
+    return `<div class="thread-msg${isLast ? ' expanded' : ''}" data-msg-idx="${i}">
+      <div class="thread-msg-header" onclick="toggleThreadMsg(${i})">
+        <div class="thread-msg-av">${initials}</div>
+        <div class="thread-msg-sender">
+          <div class="thread-msg-name">${esc(m.from)} <span style="font-weight:normal;color:var(--text3);font-size:0.7rem">&lt;${esc(m.fromEmail)}&gt;</span></div>
+          <div class="thread-msg-snippet">${esc(m.preview || '')}</div>
+        </div>
+        <div class="thread-msg-time">${fmtFull(m.time)}</div>
+      </div>
+      <div class="thread-msg-body"><div class="rd-body">${bodyHtml}</div></div>
+      ${attsHtml}
+    </div>`;
+  }).join('');
+
+  // Scroll to the last (expanded) message
+  const scroll = container.closest('.rd-scroll');
+  if (scroll) setTimeout(() => scroll.scrollTop = scroll.scrollHeight, 50);
+}
+
+function toggleThreadMsg(idx) {
+  const el = document.querySelector(`.thread-msg[data-msg-idx="${idx}"]`);
+  if (el) el.classList.toggle('expanded');
 }
 
 // ── ACTIONS ───────────────────────────────────────────────
@@ -1337,13 +1414,15 @@ async function sendReply() {
   if (!body) return;
   if (demoMode) { toast('✓ Reply sent (demo)'); document.getElementById('rta').value = ''; return; }
   try {
+    // Reply to the last message in the thread
+    const replyTo = threadMessages.length > 0 ? threadMessages[threadMessages.length - 1] : selEmail;
     const raw = buildRfc822(
-      selEmail.fromEmail,
+      replyTo.fromEmail,
       'Re: ' + selEmail.subject,
       body.replace(/\n/g, '<br>'),
       '',
-      selEmail.msgId,
-      selEmail.msgId
+      replyTo.msgId,
+      replyTo.msgId
     );
     await gmailFetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
       method: 'POST',
@@ -1351,6 +1430,12 @@ async function sendReply() {
     });
     toast('✓ Reply sent');
     document.getElementById('rta').value = '';
+    // Reload thread to show the sent reply
+    try {
+      const threadData = await gmailFetch(`https://www.googleapis.com/gmail/v1/users/me/threads/${selEmail.threadId}?format=full`);
+      threadMessages = (threadData.messages || []).map(mapMsg);
+      renderThread();
+    } catch(e) {}
   } catch(e) { toast('✕ ' + e.message); }
 }
 
@@ -1516,15 +1601,17 @@ async function aiHoverGo() {
 // ── FOLDER / FILTER ───────────────────────────────────────
 function switchFolder(f, el) {
   folder = f;
-  cat = 'all';
+  cat = (f === 'INBOX') ? 'CATEGORY_PERSONAL' : 'all';
   nextPageToken = null;
   document.querySelectorAll('.sb-item[data-folder]').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
   document.querySelectorAll('.lp-cat').forEach(p => p.classList.remove('on'));
-  document.querySelector('.lp-cat').classList.add('on');
+  const firstCat = document.querySelector('.lp-cat');
+  if (firstCat) firstCat.classList.add('on');
   // Show category tabs only for INBOX
   document.getElementById('lp-cats').style.display = (f === 'INBOX') ? '' : 'none';
-  document.getElementById('lp-title').textContent = FOLDER_NAMES[f] || f;
+  const labelEl = el.querySelector('span:nth-child(2)');
+  document.getElementById('lp-title').textContent = FOLDER_NAMES[f] || (labelEl ? labelEl.textContent : f);
   selEmail = null;
   document.getElementById('rd-content').style.display = 'none';
   document.getElementById('rd-empty').style.display = '';
@@ -1541,7 +1628,6 @@ function setCat(c, el) {
 }
 
 function filterList(q) { searchQ = q; renderList(); }
-function markAllRead() { emails.forEach(e => e.unread = false); updateBadge(); renderList(); toast('✓ All marked read'); }
 function updateBadge() {
   const n = emails.filter(e => e.unread).length;
   const el = document.getElementById('inbox-badge');
@@ -1562,7 +1648,6 @@ const CMDS = [
   { l: 'AI Edit (⌘A)', ic: '✦', a: openAIHover },
   { l: 'Go to Inbox', ic: '✉', a: () => document.querySelector('[data-folder="INBOX"]').click() },
   { l: 'Refresh', ic: '↻', a: refresh },
-  { l: 'Mark all read', ic: '👁', a: markAllRead },
   { l: 'Toggle theme', ic: '◑', a: toggleTheme },
   { l: 'Sign out', ic: '✕', a: signOut },
 ];
